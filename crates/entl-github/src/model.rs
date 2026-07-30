@@ -68,6 +68,7 @@ pub struct WorkflowToolInvocation {
 pub struct Workflow {
     pub path: PathBuf,
     pub triggers: BTreeSet<String>,
+    pub pull_request_path_filters: bool,
     pub pull_request_checks: BTreeSet<String>,
     pub jobs: Vec<WorkflowJob>,
     pub commands: Vec<WorkflowCommand>,
@@ -102,6 +103,9 @@ impl Workflow {
 pub struct WorkflowJob {
     pub id: String,
     pub name: String,
+    pub condition: Option<String>,
+    pub needs: BTreeSet<String>,
+    pub has_outputs: bool,
     pub continue_on_error: bool,
     pub timeout_minutes: Option<String>,
     pub uses: Option<String>,

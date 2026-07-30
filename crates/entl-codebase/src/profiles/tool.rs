@@ -123,6 +123,35 @@ pub struct ToolProfile {
     pub programs: &'static [&'static str],
     pub languages: &'static [&'static LanguageProfile],
     pub commands: &'static [CommandPattern],
+    pub configuration_files: &'static [&'static str],
+    pub package_json_keys: &'static [&'static str],
+    pub ci_workload: CiWorkload,
+    pub test_retry: Option<TestRetryProfile>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CiWorkload {
+    Light,
+    Heavy,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TestRetryProfile {
+    pub arguments: &'static [&'static str],
+    pub configurations: &'static [TestRetryConfiguration],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TestRetryConfiguration {
+    pub paths: &'static [&'static str],
+    pub signals: &'static [TestRetrySignal],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TestRetrySignal {
+    JavascriptProperty(&'static str),
+    JavascriptCall(&'static str),
+    TomlPositiveInteger(&'static str),
 }
 
 impl From<&ToolProfile> for ToolId {
@@ -226,6 +255,12 @@ pub fn normalize_invocation(tokens: &[String]) -> Option<(String, Vec<String>)> 
             .first()
             .is_some_and(|token| token.contains('=') && !token.starts_with('='))
         {
+            tokens = &tokens[1..];
+        }
+    }
+    if tokens.first().is_some_and(|token| token == "sudo") {
+        tokens = &tokens[1..];
+        while tokens.first().is_some_and(|token| token.starts_with('-')) {
             tokens = &tokens[1..];
         }
     }

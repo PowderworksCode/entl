@@ -32,7 +32,8 @@ pub use model::{
 pub use remote::{
     GithubActionsPermissionsFacts, GithubBranchFacts, GithubBranchProtectionFacts,
     GithubDefaultWorkflowPermissions, GithubLicenseFacts, GithubRepositoryFacts,
-    GithubSecurityFacts, GithubValue, GithubWorkflowFacts, GithubWorkflowRun,
+    GithubRulesetBypassActor, GithubRulesetFacts, GithubSecurityFacts, GithubValue,
+    GithubWorkflowFacts, GithubWorkflowRun,
 };
 pub use tool_action::{ToolActionProfile, ToolActionRegistration, tool_action_profiles};
 pub use workflow::{inspect, pull_request_check_jobs};

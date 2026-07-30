@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,8 +40,37 @@ pub struct GithubRepositoryFacts {
     pub vulnerability_alerts: GithubValue<bool>,
     pub automated_security_fixes: GithubValue<bool>,
     pub actions_permissions: GithubValue<GithubActionsPermissionsFacts>,
+    pub rulesets: GithubValue<Vec<GithubRulesetFacts>>,
     pub pull_request_checks: GithubValue<Vec<String>>,
     pub workflows: Vec<GithubWorkflowFacts>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GithubRulesetFacts {
+    pub id: u64,
+    pub name: String,
+    pub target: String,
+    pub enforcement: String,
+    pub rule_types: BTreeSet<String>,
+    pub bypass_actors: Vec<GithubRulesetBypassActor>,
+}
+
+impl GithubRulesetFacts {
+    pub fn is_active_gating_branch_ruleset(&self) -> bool {
+        self.target == "branch"
+            && self.enforcement == "active"
+            && self
+                .rule_types
+                .iter()
+                .any(|rule| matches!(rule.as_str(), "pull_request" | "required_status_checks"))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GithubRulesetBypassActor {
+    pub actor_id: Option<u64>,
+    pub actor_type: String,
+    pub bypass_mode: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

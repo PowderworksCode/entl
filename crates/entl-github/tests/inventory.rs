@@ -470,6 +470,43 @@ jobs:
 }
 
 #[test]
+fn workflow_scoping_and_heavy_wrapper_commands_are_typed() {
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        temp.path(),
+        ".github/workflows/native.yml",
+        r#"on:
+  pull_request:
+    paths: ["src/**"]
+jobs:
+  changes:
+    outputs:
+      native: ${{ steps.filter.outputs.native }}
+    steps: []
+  native:
+    if: needs.changes.outputs.native == 'true'
+    needs: [changes]
+    steps:
+      - run: sudo -E apt-get install libssl-dev
+"#,
+    );
+
+    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
+    let github = inspect(&codebase);
+    let workflow = &github.workflows[0];
+    assert!(workflow.pull_request_path_filters);
+    assert!(workflow.jobs[0].has_outputs);
+    assert_eq!(workflow.jobs[1].needs, ["changes".to_owned()].into());
+    assert!(workflow.jobs[1].condition.is_some());
+    assert!(
+        workflow
+            .tasks
+            .iter()
+            .any(|task| task.tool.as_str() == "system-package-manager")
+    );
+}
+
+#[test]
 fn nested_working_directory_selects_the_nearest_package_script() {
     let temp = tempfile::tempdir().unwrap();
     write(temp.path(), "package.json", r#"{"private":true}"#);

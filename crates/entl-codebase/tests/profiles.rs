@@ -2,11 +2,11 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use entl_codebase::{
-    CODESPELL, COMPONENT_HOST, EcosystemRole, JAVASCRIPT_LANGUAGE, ManifestSelection,
-    RUST_LANGUAGE, SHELL_LANGUAGE, STRUCTURED_CODE, STYLE_HOST, TYPESCRIPT_LANGUAGE, VALE,
-    artifact_profiles, ecosystem_profile, ecosystem_profiles, language_conventions, language_facet,
-    language_facets, language_profile, language_profiles, tool_profile, tool_profiles,
-    traversal_directories,
+    CODESPELL, COMPONENT_HOST, CiWorkload, EcosystemRole, JAVASCRIPT_LANGUAGE, ManifestSelection,
+    RUST_LANGUAGE, SHELL_LANGUAGE, STRUCTURED_CODE, STYLE_HOST, STYLELINT, TYPESCRIPT_LANGUAGE,
+    VALE, artifact_profiles, ecosystem_profile, ecosystem_profiles, language_conventions,
+    language_facet, language_facets, language_profile, language_profiles, tool_profile,
+    tool_profiles, traversal_directories,
 };
 
 #[test]
@@ -47,6 +47,13 @@ fn tool_profiles_are_codebase_owned_and_reference_typed_languages() {
     );
     assert!(std::ptr::eq(tool_profile("codespell").unwrap(), &CODESPELL));
     assert!(std::ptr::eq(tool_profile("vale").unwrap(), &VALE));
+    assert!(std::ptr::eq(tool_profile("stylelint").unwrap(), &STYLELINT));
+    assert!(STYLELINT.configuration_files.contains(&".stylelintrc.json"));
+    assert_eq!(
+        tool_profile("cargo").unwrap().ci_workload,
+        CiWorkload::Heavy
+    );
+    assert!(tool_profile("cargo").unwrap().test_retry.is_some());
 }
 
 #[test]

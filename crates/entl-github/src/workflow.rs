@@ -76,6 +76,8 @@ fn parse_workflow(codebase: &CodebaseInventory, path: &Path) -> Result<Workflow,
     let workflow_triggers = mapping_value(&value, "on")
         .map(triggers)
         .unwrap_or_default();
+    let pull_request_path_filters =
+        mapping_value(&value, "on").is_some_and(pull_request_has_path_filters);
     let pull_request_checks = pull_request_check_jobs_from_value(&value);
     let mut tasks = Vec::new();
     let mut commands = Vec::new();
@@ -165,6 +167,11 @@ fn parse_workflow(codebase: &CodebaseInventory, path: &Path) -> Result<Workflow,
                 .and_then(Value::as_str)
                 .unwrap_or(job_id)
                 .to_owned(),
+            condition: mapping_value(job, "if").and_then(scalar_text),
+            needs: mapping_value(job, "needs")
+                .map(string_set)
+                .unwrap_or_default(),
+            has_outputs: mapping_value(job, "outputs").is_some_and(has_values),
             continue_on_error: mapping_value(job, "continue-on-error").is_some_and(is_true),
             timeout_minutes: mapping_value(job, "timeout-minutes").and_then(scalar_text),
             uses: mapping_value(job, "uses")
@@ -177,6 +184,7 @@ fn parse_workflow(codebase: &CodebaseInventory, path: &Path) -> Result<Workflow,
     Ok(Workflow {
         path: path.to_path_buf(),
         triggers: workflow_triggers,
+        pull_request_path_filters,
         pull_request_checks,
         jobs: workflow_jobs,
         commands,
@@ -534,6 +542,25 @@ fn triggers(value: &Value) -> BTreeSet<String> {
             .collect(),
         Value::Mapping(triggers) => triggers
             .keys()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect(),
+        _ => BTreeSet::new(),
+    }
+}
+
+fn pull_request_has_path_filters(value: &Value) -> bool {
+    mapping_value(value, "pull_request").is_some_and(|pull_request| {
+        mapping_value(pull_request, "paths").is_some_and(has_values)
+            || mapping_value(pull_request, "paths-ignore").is_some_and(has_values)
+    })
+}
+
+fn string_set(value: &Value) -> BTreeSet<String> {
+    match value {
+        Value::String(value) => BTreeSet::from([value.clone()]),
+        Value::Sequence(values) => values
+            .iter()
             .filter_map(Value::as_str)
             .map(ToOwned::to_owned)
             .collect(),
