@@ -27,6 +27,7 @@ pub struct GithubRepositoryFacts {
     pub archived: bool,
     pub description: Option<String>,
     pub homepage: Option<String>,
+    pub license: Option<GithubLicenseFacts>,
     pub topics: Vec<String>,
     pub has_issues: bool,
     pub allow_auto_merge: bool,
@@ -39,6 +40,13 @@ pub struct GithubRepositoryFacts {
     pub actions_permissions: GithubValue<GithubActionsPermissionsFacts>,
     pub pull_request_checks: GithubValue<Vec<String>>,
     pub workflows: Vec<GithubWorkflowFacts>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GithubLicenseFacts {
+    pub key: String,
+    pub name: String,
+    pub spdx_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -47,6 +47,23 @@ impl TaskInvocation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WorkflowToolSource {
+    Command,
+    GithubAction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct WorkflowToolInvocation {
+    pub tool: ToolId,
+    pub workflow: PathBuf,
+    pub job: String,
+    pub step: usize,
+    pub source: WorkflowToolSource,
+    pub runs_on_changes: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Workflow {
     pub path: PathBuf,
@@ -203,6 +220,8 @@ pub struct GithubInventory {
     pub dependabot: DependabotInventory,
     pub workflow_files: BTreeSet<PathBuf>,
     pub workflows: Vec<Workflow>,
+    #[serde(default)]
+    pub tool_invocations: Vec<WorkflowToolInvocation>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -219,6 +238,12 @@ impl GithubInventory {
 
     pub fn has_task(&self, language: &str, kind: TaskKind) -> bool {
         has_task(&self.workflows, language, kind)
+    }
+
+    pub fn runs_tool(&self, profile: &entl_codebase::ToolProfile) -> bool {
+        self.tool_invocations
+            .iter()
+            .any(|invocation| invocation.runs_on_changes && invocation.tool.as_str() == profile.id)
     }
 }
 

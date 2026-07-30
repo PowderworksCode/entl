@@ -36,6 +36,7 @@ pub use tool::{
     ArgumentPattern, CommandPattern, TaskKind, ToolId, ToolProfile, ToolRegistration,
     classify_tool, normalize_invocation, tool_profile, tool_profiles,
 };
+pub use tools::documentation::{CODESPELL, VALE};
 pub use traversal::{TraversalDirectory, TraversalDirectoryRegistration, traversal_directories};
 
 pub use convention::{

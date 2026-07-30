@@ -2,7 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use entl_codebase::{
-    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, InventoryOptions, TaskKind, inspect as inspect_codebase,
+    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, CODESPELL, InventoryOptions, TaskKind, VALE,
+    inspect as inspect_codebase,
 };
 use entl_github::{dependabot_ecosystem_profile, inspect};
 
@@ -21,6 +22,27 @@ fn dependabot_profiles_link_to_codebase_ecosystems() {
     let bun = dependabot_ecosystem_profile(&BUN_ECOSYSTEM).unwrap();
     assert!(bun.accepts("bun"));
     assert!(bun.accepts("npm"));
+}
+
+#[test]
+fn documentation_tools_are_typed_from_commands_and_actions() {
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        temp.path(),
+        ".github/workflows/docs.yml",
+        r#"on: pull_request
+jobs:
+  prose:
+    steps:
+      - uses: codespell-project/actions-codespell@v2
+      - run: vale .
+"#,
+    );
+    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
+    let github = inspect(&codebase);
+    assert!(github.runs_tool(&CODESPELL));
+    assert!(github.runs_tool(&VALE));
+    assert_eq!(github.tool_invocations.len(), 2);
 }
 
 #[test]

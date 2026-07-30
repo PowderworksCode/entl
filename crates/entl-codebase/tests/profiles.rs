@@ -2,10 +2,11 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use entl_codebase::{
-    COMPONENT_HOST, EcosystemRole, JAVASCRIPT_LANGUAGE, ManifestSelection, RUST_LANGUAGE,
-    SHELL_LANGUAGE, STRUCTURED_CODE, STYLE_HOST, TYPESCRIPT_LANGUAGE, artifact_profiles,
-    ecosystem_profile, ecosystem_profiles, language_conventions, language_facet, language_facets,
-    language_profile, language_profiles, tool_profiles, traversal_directories,
+    CODESPELL, COMPONENT_HOST, EcosystemRole, JAVASCRIPT_LANGUAGE, ManifestSelection,
+    RUST_LANGUAGE, SHELL_LANGUAGE, STRUCTURED_CODE, STYLE_HOST, TYPESCRIPT_LANGUAGE, VALE,
+    artifact_profiles, ecosystem_profile, ecosystem_profiles, language_conventions, language_facet,
+    language_facets, language_profile, language_profiles, tool_profile, tool_profiles,
+    traversal_directories,
 };
 
 #[test]
@@ -44,6 +45,8 @@ fn tool_profiles_are_codebase_owned_and_reference_typed_languages() {
             .flat_map(|profile| profile.languages)
             .all(|language| !language.id.is_empty())
     );
+    assert!(std::ptr::eq(tool_profile("codespell").unwrap(), &CODESPELL));
+    assert!(std::ptr::eq(tool_profile("vale").unwrap(), &VALE));
 }
 
 #[test]

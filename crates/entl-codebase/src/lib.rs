@@ -24,13 +24,13 @@ pub use model::{
 };
 pub use profiles::{
     ArgumentPattern, ArtifactProfile, ArtifactRegistration, BINARY_ARTIFACT, BUN_ECOSYSTEM,
-    CARGO_ECOSYSTEM, COMPONENT_HOST, CommandPattern, CommentSyntax, EcosystemProfile,
+    CARGO_ECOSYSTEM, CODESPELL, COMPONENT_HOST, CommandPattern, CommentSyntax, EcosystemProfile,
     EcosystemRegistration, EcosystemRole, JAVASCRIPT_LANGUAGE, LanguageConventions, LanguageFacet,
     LanguageFacetRegistration, LanguageProfile, LanguageRegistration, LanguageRole,
     ManifestSelection, NAPI_ARTIFACT, NPM_ECOSYSTEM, PNPM_ECOSYSTEM, RUST_LANGUAGE, SHELL_LANGUAGE,
     SITE_ARTIFACT, STRUCTURED_CODE, STYLE_HOST, TAURI_ARTIFACT, TYPESCRIPT_LANGUAGE, TaskKind,
     TestLayoutDefaults, ToolId, ToolProfile, ToolRegistration, TraversalDirectory,
-    TraversalDirectoryRegistration, TypecheckConvention, YARN_ECOSYSTEM, artifact_profile,
+    TraversalDirectoryRegistration, TypecheckConvention, VALE, YARN_ECOSYSTEM, artifact_profile,
     artifact_profiles, classify_tool, comment_syntax, comment_syntax_for_extension,
     detect_language, ecosystem_profile, ecosystem_profiles, language_conventions, language_facet,
     language_facets, language_profile, language_profile_for_extension, language_profiles,

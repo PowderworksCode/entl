@@ -41,12 +41,14 @@ pub fn inspect(codebase: &CodebaseInventory) -> GithubInventory {
             .then(left.message.cmp(&right.message))
     });
     let conventional_commits = crate::conventional::inspect(&workflows);
+    let tool_invocations = crate::tool_action::invocations(&workflows);
     GithubInventory {
         codeowners,
         conventional_commits,
         dependabot,
         workflow_files,
         workflows,
+        tool_invocations,
         diagnostics,
     }
 }

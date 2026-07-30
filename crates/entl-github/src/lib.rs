@@ -9,6 +9,7 @@ mod conventional;
 mod dependabot;
 mod model;
 mod remote;
+mod tool_action;
 mod workflow;
 
 pub use conventional::{
@@ -25,11 +26,13 @@ pub use model::{
     CodeownersConfiguration, CodeownersInventory, CodeownersRule, ConventionalCommitEnforcement,
     ConventionalCommitInventory, ConventionalCommitTarget, DependabotConfiguration,
     DependabotInventory, DependabotUpdate, Diagnostic, GithubInventory, PackageScriptInvocation,
-    TaskInvocation, Workflow, WorkflowCommand, WorkflowJob, WorkflowStep, has_task,
+    TaskInvocation, Workflow, WorkflowCommand, WorkflowJob, WorkflowStep, WorkflowToolInvocation,
+    WorkflowToolSource, has_task,
 };
 pub use remote::{
     GithubActionsPermissionsFacts, GithubBranchFacts, GithubBranchProtectionFacts,
-    GithubDefaultWorkflowPermissions, GithubRepositoryFacts, GithubSecurityFacts, GithubValue,
-    GithubWorkflowFacts, GithubWorkflowRun,
+    GithubDefaultWorkflowPermissions, GithubLicenseFacts, GithubRepositoryFacts,
+    GithubSecurityFacts, GithubValue, GithubWorkflowFacts, GithubWorkflowRun,
 };
+pub use tool_action::{ToolActionProfile, ToolActionRegistration, tool_action_profiles};
 pub use workflow::{inspect, pull_request_check_jobs};
