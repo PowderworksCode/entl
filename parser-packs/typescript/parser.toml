@@ -1,0 +1,37 @@
+schema = 1
+id = "tree-sitter-typescript"
+language = "typescript"
+version = "0.23.2"
+source = "https://github.com/tree-sitter/tree-sitter-typescript"
+revision = "f975a621f4e7f532fe322e13c4f79495e0a7b2e7"
+license = "MIT"
+abi = 14
+sha256 = "dd8410750c33faa3d32ef8225c646ba3d4cb0324377c23beb960aa0d323473d6"
+comparison-domain = "ecmascript"
+
+[files]
+extensions = ["ts", "mts", "cts"]
+
+[tokenization]
+ignored-node-kinds = ["comment"]
+identifier-node-kinds = [
+    "identifier",
+    "nested_identifier",
+    "nested_type_identifier",
+    "private_property_identifier",
+    "property_identifier",
+    "shorthand_property_identifier",
+    "shorthand_property_identifier_pattern",
+    "statement_identifier",
+    "type_identifier",
+]
+literal-node-kinds = [
+    "false",
+    "null",
+    "number",
+    "regex",
+    "string",
+    "template_string",
+    "true",
+    "undefined",
+]

@@ -1,0 +1,30 @@
+schema = 1
+id = "tree-sitter-rust"
+language = "rust"
+version = "0.24.2"
+source = "https://github.com/tree-sitter/tree-sitter-rust"
+revision = "77a3747266f4d621d0757825e6b11edcbf991ca5"
+license = "MIT"
+abi = 15
+sha256 = "3da386194870ea730faaa64981a3baab609b8fa42652c04af82c9b04b33edebe"
+comparison-domain = "rust"
+
+[files]
+extensions = ["rs"]
+
+[tokenization]
+ignored-node-kinds = ["line_comment", "block_comment"]
+identifier-node-kinds = [
+    "identifier",
+    "field_identifier",
+    "type_identifier",
+    "lifetime",
+]
+literal-node-kinds = [
+    "boolean_literal",
+    "char_literal",
+    "float_literal",
+    "integer_literal",
+    "raw_string_literal",
+    "string_literal",
+]
