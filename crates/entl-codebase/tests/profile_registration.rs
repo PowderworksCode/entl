@@ -47,6 +47,7 @@ static POLYGLOT: EcosystemProfile = EcosystemProfile {
     selector_files: &[],
     gitignore_patterns: &[],
     manifest_selection: ManifestSelection::Default,
+    dependency_pins: None,
 };
 
 profile_registry::submit! {

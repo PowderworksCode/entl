@@ -43,6 +43,44 @@ pub struct GithubRepositoryFacts {
     pub rulesets: GithubValue<Vec<GithubRulesetFacts>>,
     pub pull_request_checks: GithubValue<Vec<String>>,
     pub workflows: Vec<GithubWorkflowFacts>,
+    pub action_publication: GithubValue<Option<GithubActionPublicationFacts>>,
+    pub stale: GithubValue<GithubStaleFacts>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GithubActionPublicationFacts {
+    pub manifest_path: std::path::PathBuf,
+    pub name: String,
+    pub marketplace_slug: String,
+    pub marketplace_url: String,
+    pub readme_path: Option<std::path::PathBuf>,
+    pub marketplace_linked: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependabotAutomergeWorkflowFacts {
+    pub pull_request_trigger: bool,
+    pub dependabot_only: bool,
+    pub fetches_metadata: bool,
+    pub excludes_major_updates: bool,
+    pub enables_auto_merge: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GithubPullRequestAgeFacts {
+    pub number: u64,
+    pub updated_at: String,
+    pub idle_days: u64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GithubStaleFacts {
+    pub open_pull_requests: Vec<GithubPullRequestAgeFacts>,
+    pub pull_requests_truncated: bool,
+    pub merged_branches: Vec<String>,
+    pub examined_branches: usize,
+    pub non_default_branches: usize,
+    pub branches_truncated: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -121,6 +159,8 @@ pub struct GithubWorkflowFacts {
     pub path: String,
     pub state: String,
     pub latest_run: Option<GithubWorkflowRun>,
+    #[serde(default)]
+    pub dependabot_automerge: DependabotAutomergeWorkflowFacts,
 }
 
 impl GithubWorkflowFacts {

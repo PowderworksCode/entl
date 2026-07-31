@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::LazyLock;
 
-use crate::{EcosystemId, LanguageProfile, language_profiles};
+use crate::{Dependency, DependencySource, EcosystemId, LanguageProfile, language_profiles};
 
 use super::registry;
 
@@ -20,6 +20,55 @@ pub enum ManifestSelection {
     Lockfile,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DependencyPinSyntax {
+    ExactSemver,
+    CargoExactRequirement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DependencyPinStatus {
+    Pinned,
+    Floating,
+    Local,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DependencyPinPolicy {
+    pub syntax: DependencyPinSyntax,
+    pub advisory: bool,
+}
+
+impl DependencyPinPolicy {
+    pub fn classify(self, dependency: &Dependency) -> DependencyPinStatus {
+        match dependency.source {
+            DependencySource::LocalPath | DependencySource::Workspace => DependencyPinStatus::Local,
+            DependencySource::Git => {
+                if dependency.requirement.as_deref().is_some_and(commit_sha) {
+                    DependencyPinStatus::Pinned
+                } else {
+                    DependencyPinStatus::Floating
+                }
+            }
+            DependencySource::Registry => {
+                let requirement = dependency.requirement.as_deref().unwrap_or_default().trim();
+                let pinned = match self.syntax {
+                    DependencyPinSyntax::ExactSemver => exact_semver(requirement),
+                    DependencyPinSyntax::CargoExactRequirement => requirement
+                        .strip_prefix('=')
+                        .is_some_and(|version| !version.trim().is_empty()),
+                };
+                if pinned {
+                    DependencyPinStatus::Pinned
+                } else {
+                    DependencyPinStatus::Floating
+                }
+            }
+            DependencySource::Unknown => DependencyPinStatus::Floating,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct EcosystemProfile {
     pub id: &'static str,
@@ -31,6 +80,7 @@ pub struct EcosystemProfile {
     pub selector_files: &'static [&'static str],
     pub gitignore_patterns: &'static [&'static str],
     pub manifest_selection: ManifestSelection,
+    pub dependency_pins: Option<DependencyPinPolicy>,
 }
 
 impl EcosystemProfile {
@@ -53,6 +103,30 @@ impl EcosystemProfile {
     pub fn lockfile_description(&self) -> String {
         self.lockfiles.join(" or ")
     }
+}
+
+fn exact_semver(requirement: &str) -> bool {
+    let version = requirement.strip_prefix('v').unwrap_or(requirement);
+    if version.is_empty()
+        || version.bytes().any(|byte| {
+            matches!(
+                byte,
+                b'^' | b'~' | b'<' | b'>' | b'=' | b'*' | b'x' | b'X' | b' ' | b',' | b'|'
+            )
+        })
+    {
+        return false;
+    }
+    let core = version.split(['-', '+']).next().unwrap_or_default();
+    let components = core.split('.').collect::<Vec<_>>();
+    components.len() == 3
+        && components.iter().all(|component| {
+            !component.is_empty() && component.bytes().all(|byte| byte.is_ascii_digit())
+        })
+}
+
+fn commit_sha(value: &str) -> bool {
+    value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 impl From<&EcosystemProfile> for EcosystemId {

@@ -4,14 +4,19 @@
 //! automation tasks. It does not decide which workflows or tasks policy
 //! requires.
 
+mod action;
+mod automerge;
 mod codeowners;
 mod conventional;
 mod dependabot;
 mod model;
+mod pin;
 mod remote;
 mod tool_action;
 mod workflow;
 
+pub use action::inspect_action_publication;
+pub use automerge::inspect_dependabot_automerge_workflow;
 pub use conventional::{
     CommandMatcher as ConventionalCommitCommandMatcher, ConventionalCommitEnforcerProfile,
     ConventionalCommitEnforcerRegistration,
@@ -23,17 +28,19 @@ pub use dependabot::{
     dependabot_ecosystem_profiles, registry as dependabot_registry,
 };
 pub use model::{
-    CodeownersConfiguration, CodeownersInventory, CodeownersRule, ConventionalCommitEnforcement,
-    ConventionalCommitInventory, ConventionalCommitTarget, DependabotConfiguration,
-    DependabotInventory, DependabotUpdate, Diagnostic, GithubInventory, PackageScriptInvocation,
-    TaskInvocation, Workflow, WorkflowCommand, WorkflowJob, WorkflowStep, WorkflowToolInvocation,
-    WorkflowToolSource, has_task,
+    ActionPinStatus, ActionReference, CodeownersConfiguration, CodeownersInventory, CodeownersRule,
+    ConventionalCommitEnforcement, ConventionalCommitInventory, ConventionalCommitTarget,
+    DependabotConfiguration, DependabotInventory, DependabotUpdate, Diagnostic, GithubInventory,
+    PackageScriptInvocation, TaskInvocation, Workflow, WorkflowCommand, WorkflowJob, WorkflowStep,
+    WorkflowToolInvocation, WorkflowToolSource, has_task,
 };
+pub use pin::{ACTION_PINS, ActionPinPolicy};
 pub use remote::{
-    GithubActionsPermissionsFacts, GithubBranchFacts, GithubBranchProtectionFacts,
-    GithubDefaultWorkflowPermissions, GithubLicenseFacts, GithubRepositoryFacts,
-    GithubRulesetBypassActor, GithubRulesetFacts, GithubSecurityFacts, GithubValue,
-    GithubWorkflowFacts, GithubWorkflowRun,
+    DependabotAutomergeWorkflowFacts, GithubActionPublicationFacts, GithubActionsPermissionsFacts,
+    GithubBranchFacts, GithubBranchProtectionFacts, GithubDefaultWorkflowPermissions,
+    GithubLicenseFacts, GithubPullRequestAgeFacts, GithubRepositoryFacts, GithubRulesetBypassActor,
+    GithubRulesetFacts, GithubSecurityFacts, GithubStaleFacts, GithubValue, GithubWorkflowFacts,
+    GithubWorkflowRun,
 };
 pub use tool_action::{ToolActionProfile, ToolActionRegistration, tool_action_profiles};
 pub use workflow::{inspect, pull_request_check_jobs};

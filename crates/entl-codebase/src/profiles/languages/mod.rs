@@ -27,6 +27,7 @@ mod toml;
 pub(crate) mod typescript;
 mod vue;
 mod yaml;
+mod zig;
 
 macro_rules! simple_language {
     (

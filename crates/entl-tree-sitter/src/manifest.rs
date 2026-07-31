@@ -48,6 +48,9 @@ pub struct TokenizationManifest {
     pub identifier_node_kinds: Vec<String>,
     #[serde(default, rename = "literal-node-kinds")]
     pub literal_node_kinds: Vec<String>,
+    /// Named syntax nodes that form useful whole-code comparison units.
+    #[serde(default, rename = "unit-node-kinds")]
+    pub unit_node_kinds: Vec<String>,
 }
 
 impl ParserPackManifest {

@@ -47,6 +47,7 @@ fn downstream_discovery_handlers_enrich_projects_after_builtin_discovery() {
             "entl.relationships",
             "entl.projects",
             "entl.artifacts",
+            "entl.cargo-lockfile-resolutions",
             "fixture.enrichment"
         ]
     );

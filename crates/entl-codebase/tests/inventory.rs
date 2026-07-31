@@ -340,6 +340,49 @@ fn explicit_cargo_workspace_links_control_lockfile_ownership() {
 }
 
 #[test]
+fn cargo_lockfiles_expose_exact_resolved_packages() {
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        temp.path(),
+        "Cargo.toml",
+        "[package]\nname='app'\nversion='0.0.0'\n[dependencies]\niter={ package='itertools', version='0.14' }\n",
+    );
+    write(
+        temp.path(),
+        "Cargo.lock",
+        r#"version = 4
+
+[[package]]
+name = "app"
+version = "0.0.0"
+dependencies = ["itertools"]
+
+[[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1234567890abcdef"
+"#,
+    );
+
+    let inventory = inspect(temp.path(), &InventoryOptions::default()).unwrap();
+    let dependency = &inventory.packages[0].dependencies[0];
+    assert_eq!(dependency.name, "iter");
+    assert_eq!(dependency.package.as_deref(), Some("itertools"));
+    assert_eq!(dependency.package_name(), "itertools");
+    let resolution = inventory.dependency_resolutions.first().unwrap();
+    assert_eq!(resolution.ecosystem, EcosystemId::from("cargo"));
+    assert_eq!(resolution.lockfile, Path::new("Cargo.lock"));
+    let itertools = resolution
+        .packages
+        .iter()
+        .find(|package| package.name == "itertools")
+        .unwrap();
+    assert_eq!(itertools.version, "0.14.0");
+    assert_eq!(itertools.checksum.as_deref(), Some("1234567890abcdef"));
+}
+
+#[test]
 fn pnpm_workspace_selects_manager_and_project_facts() {
     let temp = tempfile::tempdir().unwrap();
     write(temp.path(), "package.json", "{}");

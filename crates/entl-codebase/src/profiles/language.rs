@@ -20,6 +20,8 @@ pub enum LanguageRole {
 pub struct CommentSyntax {
     pub line: &'static [&'static str],
     pub block: &'static [(&'static str, &'static str)],
+    /// Prefixes recognized by the language's documentation tooling.
+    pub documentation: &'static [&'static str],
     pub quotes: &'static [char],
     pub multi_quotes: &'static [&'static str],
 }

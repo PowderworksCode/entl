@@ -1,0 +1,32 @@
+schema = 1
+id = "tree-sitter-zig"
+language = "zig"
+version = "1.1.2"
+source = "https://github.com/tree-sitter-grammars/tree-sitter-zig"
+revision = "6479aa13f32f701c383083d8b28360ebd682fb7d"
+license = "MIT"
+abi = 15
+sha256 = "2c72fafe91037948aa4c7dfb950b5627cf462868421fb60c1808506d4733b51e"
+comparison-domain = "zig"
+
+[files]
+extensions = ["zig"]
+
+[tokenization]
+ignored-node-kinds = ["line_comment", "doc_comment", "container_doc_comment"]
+identifier-node-kinds = [
+    "identifier",
+    "field_identifier",
+    "builtin_identifier",
+]
+literal-node-kinds = [
+    "integer",
+    "float",
+    "string",
+    "multiline_string",
+    "character",
+]
+unit-node-kinds = [
+    "function_declaration",
+    "test_declaration",
+]

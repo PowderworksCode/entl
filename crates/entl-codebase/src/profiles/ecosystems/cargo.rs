@@ -1,6 +1,11 @@
 use crate::{
-    EcosystemProfile, EcosystemRegistration, EcosystemRole, ManifestSelection,
-    profiles::languages::rust,
+    DependencyPinPolicy, DependencyPinSyntax, EcosystemProfile, EcosystemRegistration,
+    EcosystemRole, ManifestSelection, profiles::languages::rust,
+};
+
+const DEPENDENCY_PINS: DependencyPinPolicy = DependencyPinPolicy {
+    syntax: DependencyPinSyntax::CargoExactRequirement,
+    advisory: true,
 };
 
 pub static PROFILE: EcosystemProfile = EcosystemProfile {
@@ -13,6 +18,7 @@ pub static PROFILE: EcosystemProfile = EcosystemProfile {
     selector_files: &[],
     gitignore_patterns: &["target/"],
     manifest_selection: ManifestSelection::Default,
+    dependency_pins: Some(DEPENDENCY_PINS),
 };
 
 crate::profiles::registry::submit! {

@@ -44,10 +44,46 @@ pub enum DependencyKind {
     Optional,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DependencySource {
+    Registry,
+    Git,
+    LocalPath,
+    Workspace,
+    Unknown,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Dependency {
+    /// Name used by the declaring package.
     pub name: String,
+    /// Upstream package name when the declaration is renamed.
+    pub package: Option<String>,
     pub kind: DependencyKind,
+    pub source: DependencySource,
+    pub requirement: Option<String>,
+}
+
+impl Dependency {
+    pub fn package_name(&self) -> &str {
+        self.package.as_deref().unwrap_or(&self.name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ResolvedPackage {
+    pub name: String,
+    pub version: String,
+    pub source: Option<String>,
+    pub checksum: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependencyResolution {
+    pub ecosystem: EcosystemId,
+    pub lockfile: PathBuf,
+    pub packages: Vec<ResolvedPackage>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,7 +136,7 @@ impl Package {
     pub fn depends_on(&self, package: &str) -> bool {
         self.dependencies
             .iter()
-            .any(|dependency| dependency.name == package)
+            .any(|dependency| dependency.package_name() == package)
     }
 
     pub fn script(&self, name: &str) -> Option<&PackageScript> {

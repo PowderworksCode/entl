@@ -14,11 +14,18 @@ local checkout once and returns reusable facts about:
 - project boundaries, ecosystem roles, and language project signals;
 - language-linked test-layout, inline-test, and required-config conventions;
 - language-linked tool profiles and typed task classifications;
-- direct dependency names and kinds;
+- direct dependency names, kinds, declared sources, and version requirements;
+- exact package versions, registry sources, and checksums observed in Cargo lockfiles;
 - package scripts;
 - distributable artifact instances for binaries, site bundles, napi-rs addons, and Tauri apps;
 - the nearest package owners of every file; and
 - recoverable inventory diagnostics.
+
+Explicit compiler observation is separate from passive inventory. Consumers
+that need build-context facts can call `observe_rust_compiler`; it runs the
+active `rustc` from the repository directory and returns its exact release,
+commit, host, sysroot, installed standard-library source location, cfg values,
+and target features. A normal `inspect` never runs a compiler.
 
 The crate enforces no codebase policy. A linter can consume files and lazy
 text, an auditor can consume package/workspace structure, and a later
@@ -85,6 +92,9 @@ implementations are data artifacts rather than Rust dependencies. Verified
 Rust, JavaScript, TypeScript, and TSX packs are included under `parser-packs`.
 Each manifest declares which Entl language and file extensions it handles, so
 multiple grammar variants can serve one language without consumer hardcoding.
+Parser packs also declare language-specific syntax-unit node kinds used to
+group token comparisons at function, method, implementation, and class
+boundaries.
 
 The `grammar.wasm` artifacts are vendored third-party builds, not Entl's own
 code. Each pack's `parser.toml` pins the upstream repository, revision, version,

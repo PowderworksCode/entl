@@ -42,6 +42,7 @@ pub fn inspect(codebase: &CodebaseInventory) -> GithubInventory {
     });
     let conventional_commits = crate::conventional::inspect(&workflows);
     let tool_invocations = crate::tool_action::invocations(&workflows);
+    let action_references = crate::pin::references(&workflows);
     GithubInventory {
         codeowners,
         conventional_commits,
@@ -49,6 +50,7 @@ pub fn inspect(codebase: &CodebaseInventory) -> GithubInventory {
         workflow_files,
         workflows,
         tool_invocations,
+        action_references,
         diagnostics,
     }
 }

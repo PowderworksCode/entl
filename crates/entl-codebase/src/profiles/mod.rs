@@ -14,8 +14,8 @@ mod traversal;
 pub use artifact::{ArtifactProfile, ArtifactRegistration, artifact_profile, artifact_profiles};
 pub use artifacts::{BINARY_ARTIFACT, NAPI_ARTIFACT, SITE_ARTIFACT, TAURI_ARTIFACT};
 pub use ecosystem::{
-    EcosystemProfile, EcosystemRegistration, EcosystemRole, ManifestSelection, ecosystem_profile,
-    ecosystem_profiles,
+    DependencyPinPolicy, DependencyPinStatus, DependencyPinSyntax, EcosystemProfile,
+    EcosystemRegistration, EcosystemRole, ManifestSelection, ecosystem_profile, ecosystem_profiles,
 };
 pub use ecosystems::{
     BUN as BUN_ECOSYSTEM, CARGO as CARGO_ECOSYSTEM, NPM as NPM_ECOSYSTEM, PNPM as PNPM_ECOSYSTEM,

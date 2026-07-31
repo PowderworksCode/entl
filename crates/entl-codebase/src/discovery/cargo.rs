@@ -9,8 +9,9 @@ use super::{
     ManifestFacts, WorkspaceSpec, normalize_relative, package_id, registry, workspace_id,
 };
 use crate::{
-    Artifact, BINARY_ARTIFACT, Dependency, DependencyKind, Diagnostic, DiagnosticKind, EcosystemId,
-    Manifest, ManifestKind, Package, PackageKind, Workspace, WorkspaceKind,
+    Artifact, BINARY_ARTIFACT, Dependency, DependencyKind, DependencyResolution, DependencySource,
+    Diagnostic, DiagnosticKind, EcosystemId, Manifest, ManifestKind, Package, PackageKind,
+    ResolvedPackage, Workspace, WorkspaceKind,
 };
 
 #[derive(Debug, Default, Deserialize)]
@@ -43,9 +44,72 @@ struct CargoWorkspace {
     exclude: Vec<String>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct CargoLock {
+    #[serde(default)]
+    package: Vec<CargoLockedPackage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CargoLockedPackage {
+    name: String,
+    version: String,
+    source: Option<String>,
+    checksum: Option<String>,
+}
+
 fn discover(builder: &mut DiscoveryBuilder<'_>) {
     for path in builder.manifest_paths("Cargo.toml") {
         builder.add_manifest_facts(parse(builder.root(), &path));
+    }
+}
+
+fn discover_resolutions(builder: &mut DiscoveryBuilder<'_>) {
+    let lockfiles = builder
+        .packages()
+        .iter()
+        .filter(|package| package.kind == PackageKind::Cargo)
+        .filter_map(|package| package.lockfile.clone())
+        .collect::<BTreeSet<_>>();
+    for lockfile in lockfiles {
+        let source = match std::fs::read_to_string(builder.root().join(&lockfile)) {
+            Ok(source) => source,
+            Err(error) => {
+                builder.add_diagnostic(Diagnostic {
+                    kind: DiagnosticKind::Metadata,
+                    path: lockfile,
+                    message: format!("Cargo lockfile is unreadable: {error}"),
+                });
+                continue;
+            }
+        };
+        let parsed = match toml::from_str::<CargoLock>(&source) {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                builder.add_diagnostic(Diagnostic {
+                    kind: DiagnosticKind::Metadata,
+                    path: lockfile,
+                    message: format!("Cargo lockfile is invalid TOML: {error}"),
+                });
+                continue;
+            }
+        };
+        let mut packages = parsed
+            .package
+            .into_iter()
+            .map(|package| ResolvedPackage {
+                name: package.name,
+                version: package.version,
+                source: package.source,
+                checksum: package.checksum,
+            })
+            .collect::<Vec<_>>();
+        packages.sort();
+        builder.add_dependency_resolution(DependencyResolution {
+            ecosystem: EcosystemId::from("cargo"),
+            lockfile,
+            packages,
+        });
     }
 }
 
@@ -159,9 +223,46 @@ fn collect_dependencies(
     out.extend(
         dependencies
             .unwrap_or_default()
-            .into_keys()
-            .map(|name| Dependency { name, kind }),
+            .into_iter()
+            .map(|(name, value)| cargo_dependency(name, kind, value)),
     );
+}
+
+fn cargo_dependency(name: String, kind: DependencyKind, value: Value) -> Dependency {
+    let package = value
+        .as_table()
+        .and_then(|table| table.get("package"))
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
+    let (source, requirement) = match value {
+        Value::String(requirement) => (DependencySource::Registry, Some(requirement)),
+        Value::Table(table) if table.get("workspace").and_then(Value::as_bool) == Some(true) => {
+            (DependencySource::Workspace, None)
+        }
+        Value::Table(table) if table.contains_key("path") => (DependencySource::LocalPath, None),
+        Value::Table(table) if table.contains_key("git") => (
+            DependencySource::Git,
+            table
+                .get("rev")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
+        ),
+        Value::Table(table) => (
+            DependencySource::Registry,
+            table
+                .get("version")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
+        ),
+        _ => (DependencySource::Unknown, None),
+    };
+    Dependency {
+        name,
+        package,
+        kind,
+        source,
+        requirement,
+    }
 }
 
 static HANDLER: DiscoveryHandler = DiscoveryHandler {
@@ -170,4 +271,11 @@ static HANDLER: DiscoveryHandler = DiscoveryHandler {
     run: discover,
 };
 
+static RESOLUTION_HANDLER: DiscoveryHandler = DiscoveryHandler {
+    id: "entl.cargo-lockfile-resolutions",
+    phase: DiscoveryPhase::Enrichment,
+    run: discover_resolutions,
+};
+
 registry::submit! { DiscoveryHandlerRegistration(&HANDLER) }
+registry::submit! { DiscoveryHandlerRegistration(&RESOLUTION_HANDLER) }

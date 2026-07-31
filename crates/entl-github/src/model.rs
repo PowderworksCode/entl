@@ -64,6 +64,25 @@ pub struct WorkflowToolInvocation {
     pub runs_on_changes: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ActionPinStatus {
+    Pinned,
+    Channel,
+    Floating,
+    Local,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ActionReference {
+    pub workflow: PathBuf,
+    pub job: String,
+    pub step: usize,
+    pub action: String,
+    pub reference: Option<String>,
+    pub pin_status: ActionPinStatus,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Workflow {
     pub path: PathBuf,
@@ -226,6 +245,8 @@ pub struct GithubInventory {
     pub workflows: Vec<Workflow>,
     #[serde(default)]
     pub tool_invocations: Vec<WorkflowToolInvocation>,
+    #[serde(default)]
+    pub action_references: Vec<ActionReference>,
     pub diagnostics: Vec<Diagnostic>,
 }
 

@@ -24,6 +24,23 @@ pub enum Error {
 
     #[error("{path} is not valid UTF-8")]
     NonUtf8 { path: PathBuf },
+
+    #[error("could not run {program}: {source}")]
+    Command {
+        program: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("{program} failed with status {status:?}: {stderr}")]
+    CommandFailed {
+        program: String,
+        status: Option<i32>,
+        stderr: String,
+    },
+
+    #[error("could not interpret {program} output: {message}")]
+    CommandOutput { program: String, message: String },
 }
 
 impl Error {

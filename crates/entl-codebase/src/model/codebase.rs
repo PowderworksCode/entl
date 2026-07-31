@@ -3,8 +3,8 @@ use std::path::{Component, Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Artifact, ArtifactId, Diagnostic, FileEntry, Manifest, Package, PackageId, Project, Workspace,
-    WorkspaceId,
+    Artifact, ArtifactId, DependencyResolution, Diagnostic, FileEntry, Manifest, Package,
+    PackageId, Project, Workspace, WorkspaceId,
 };
 use crate::LanguageProfile;
 use crate::{Error, Result};
@@ -66,6 +66,8 @@ pub struct CodebaseInventory {
     pub artifacts: Vec<Artifact>,
     pub projects: Vec<Project>,
     pub packages: Vec<Package>,
+    /// Exact package versions observed in repository lockfiles.
+    pub dependency_resolutions: Vec<DependencyResolution>,
     pub workspaces: Vec<Workspace>,
     pub diagnostics: Vec<Diagnostic>,
 }

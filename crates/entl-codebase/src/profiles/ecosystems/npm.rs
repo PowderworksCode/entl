@@ -1,6 +1,11 @@
 use crate::{
-    EcosystemProfile, EcosystemRegistration, EcosystemRole, ManifestSelection,
-    profiles::languages::javascript,
+    DependencyPinPolicy, DependencyPinSyntax, EcosystemProfile, EcosystemRegistration,
+    EcosystemRole, ManifestSelection, profiles::languages::javascript,
+};
+
+pub const DEPENDENCY_PINS: DependencyPinPolicy = DependencyPinPolicy {
+    syntax: DependencyPinSyntax::ExactSemver,
+    advisory: false,
 };
 
 pub static PROFILE: EcosystemProfile = EcosystemProfile {
@@ -13,6 +18,7 @@ pub static PROFILE: EcosystemProfile = EcosystemProfile {
     selector_files: &[],
     gitignore_patterns: &["node_modules/"],
     manifest_selection: ManifestSelection::Default,
+    dependency_pins: Some(DEPENDENCY_PINS),
 };
 
 crate::profiles::registry::submit! {

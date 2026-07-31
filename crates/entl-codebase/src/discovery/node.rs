@@ -9,8 +9,8 @@ use super::{
     ManifestFacts, WorkspaceSpec, package_id, registry, workspace_id,
 };
 use crate::{
-    Dependency, DependencyKind, Diagnostic, DiagnosticKind, EcosystemId, Manifest, ManifestKind,
-    Package, PackageKind, PackageScript, Workspace, WorkspaceKind,
+    Dependency, DependencyKind, DependencySource, Diagnostic, DiagnosticKind, EcosystemId,
+    Manifest, ManifestKind, Package, PackageKind, PackageScript, Workspace, WorkspaceKind,
 };
 
 #[derive(Debug, Default, Deserialize)]
@@ -263,9 +263,31 @@ fn collect_dependencies(
     out.extend(
         dependencies
             .unwrap_or_default()
-            .into_keys()
-            .map(|name| Dependency { name, kind }),
+            .into_iter()
+            .map(|(name, value)| {
+                let requirement = value.as_str().map(ToOwned::to_owned);
+                let source = if requirement.as_deref().is_some_and(node_local_requirement) {
+                    DependencySource::LocalPath
+                } else if requirement.is_some() {
+                    DependencySource::Registry
+                } else {
+                    DependencySource::Unknown
+                };
+                Dependency {
+                    name,
+                    package: None,
+                    kind,
+                    source,
+                    requirement,
+                }
+            }),
     );
+}
+
+fn node_local_requirement(requirement: &str) -> bool {
+    ["file:", "link:", "workspace:", "portal:", ".", "/"]
+        .iter()
+        .any(|prefix| requirement.starts_with(prefix))
 }
 
 fn package_manager_id(value: &str) -> Option<&'static str> {

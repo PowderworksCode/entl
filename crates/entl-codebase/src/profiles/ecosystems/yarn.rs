@@ -13,6 +13,7 @@ pub static PROFILE: EcosystemProfile = EcosystemProfile {
     selector_files: &[],
     gitignore_patterns: &["node_modules/"],
     manifest_selection: ManifestSelection::Lockfile,
+    dependency_pins: Some(super::npm::DEPENDENCY_PINS),
 };
 
 crate::profiles::registry::submit! {

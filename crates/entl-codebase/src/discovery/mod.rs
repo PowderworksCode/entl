@@ -7,10 +7,10 @@ mod cargo;
 mod node;
 
 use crate::{
-    Artifact, ArtifactProfile, BINARY_ARTIFACT, CodebaseInventory, Diagnostic, DiagnosticKind,
-    EcosystemId, FileEntry, InventoryOptions, LanguageId, Manifest, Package, PackageId,
-    PackageKind, PackageLanguage, Project, ProjectFacetId, Result, Workspace, WorkspaceId,
-    WorkspaceKind, artifact_profile, artifact_profiles, walk,
+    Artifact, ArtifactProfile, BINARY_ARTIFACT, CodebaseInventory, DependencyResolution,
+    Diagnostic, DiagnosticKind, EcosystemId, FileEntry, InventoryOptions, LanguageId, Manifest,
+    Package, PackageId, PackageKind, PackageLanguage, Project, ProjectFacetId, Result, Workspace,
+    WorkspaceId, WorkspaceKind, artifact_profile, artifact_profiles, walk,
 };
 use crate::{LanguageRole, ecosystem_profile, language_profile, language_profiles};
 
@@ -85,6 +85,7 @@ impl<'a> DiscoveryBuilder<'a> {
                 artifacts: Vec::new(),
                 projects: Vec::new(),
                 packages: Vec::new(),
+                dependency_resolutions: Vec::new(),
                 workspaces: Vec::new(),
                 workspace_specs: Vec::new(),
                 explicit_workspaces: BTreeMap::new(),
@@ -103,6 +104,10 @@ impl<'a> DiscoveryBuilder<'a> {
 
     pub fn packages(&self) -> &[Package] {
         &self.draft.packages
+    }
+
+    pub fn add_dependency_resolution(&mut self, resolution: DependencyResolution) {
+        self.draft.dependency_resolutions.push(resolution);
     }
 
     pub fn projects(&self) -> &[Project] {
@@ -278,6 +283,7 @@ struct InventoryDraft<'a> {
     artifacts: Vec<Artifact>,
     projects: Vec<Project>,
     packages: Vec<Package>,
+    dependency_resolutions: Vec<DependencyResolution>,
     workspaces: Vec<Workspace>,
     workspace_specs: Vec<WorkspaceSpec>,
     explicit_workspaces: BTreeMap<PackageId, PathBuf>,
@@ -811,6 +817,11 @@ impl InventoryDraft<'_> {
         self.manifests
             .sort_by(|left, right| left.path.cmp(&right.path));
         self.packages.sort_by(|left, right| left.id.cmp(&right.id));
+        self.dependency_resolutions.sort_by(|left, right| {
+            left.ecosystem
+                .cmp(&right.ecosystem)
+                .then(left.lockfile.cmp(&right.lockfile))
+        });
         self.projects
             .sort_by(|left, right| left.root.cmp(&right.root));
         self.workspaces
@@ -828,6 +839,7 @@ impl InventoryDraft<'_> {
             artifacts: self.artifacts,
             projects: self.projects,
             packages: self.packages,
+            dependency_resolutions: self.dependency_resolutions,
             workspaces: self.workspaces,
             diagnostics: self.diagnostics,
         })
