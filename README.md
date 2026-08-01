@@ -106,13 +106,72 @@ license, and the artifact's `sha256`. Upstream licenses are reproduced in
 ```text
 crates/entl-codebase   typed codebase inventory and profiles
 crates/entl-github     typed GitHub workflow and automation facts
+crates/entl-semantics  span-anchored semantic observations, language neutral
+crates/entl-rust-mir   observes resolved Rust semantics by running as the compiler
 crates/entl-tree-sitter runtime-loaded Wasm parser packs
 parser-packs           pinned runtime grammar artifacts (third-party, vendored)
+tools/rosetta-verbosity regenerates the language verbosity table from a corpus
 docs/design.md         boundaries and planned adapters
 ```
 
 This is intentionally not yet a CLI, query engine, database, binding suite, or
 generic ETL framework. See [the design](docs/design.md).
+
+## Semantic observations
+
+Syntax cannot say where a call goes. `use std::fs; fs::read(path)` and
+`std::fs::read(path)` are one call written two ways, and only name resolution
+knows it. `entl-semantics` defines what a compiler or language server can be
+asked about a place in the source: what a name refers to, what type an
+expression has, where a call goes, what a type implements. Every observation is
+optional, and `Coverage` records which questions a provider attempted, so a
+consumer can tell "nothing found" from "not looked at".
+
+The schema deliberately holds no intermediate representation. Compilers
+disagree at that level — some expose a control flow graph, some a typed syntax
+tree, some neither — and unifying those yields something less useful than any of
+them. Unifying the answers they can all give does not.
+
+`entl-rust-mir` is the first provider. It replaces `rustc` for one compilation
+and reads the resolved mid-level representation:
+
+```sh
+cd crates/entl-rust-mir && cargo build
+ENTL_RUST_MIR_OUTPUT=/tmp/observations \
+  target/debug/entl-rust-mir --crate-type lib --crate-name mycrate src/lib.rs
+```
+
+It lives outside the workspace on a pinned nightly with the compiler's private
+crates. That isolation is the point: compiler-backed observations sharpen
+results where a toolchain is available, and Tree-sitter remains the floor
+everywhere else. A language whose compiler is not integrated still parses.
+
+## Language verbosity
+
+Language profiles carry a measured fact about how much source text a language
+needs: `LanguageProfile::verbosity` for one language against the baseline, and
+`verbosity_ratio` for a pair as it was actually measured.
+
+```rust
+use entl_codebase::{language_profile, verbosity_ratio};
+
+let java = language_profile("java").unwrap().verbosity().unwrap();
+let python = language_profile("python").unwrap().verbosity().unwrap();
+assert!(java.bytes > python.bytes);
+
+// Measured on the tasks both implement, not derived from the two indexes.
+let measured = verbosity_ratio("java", "python").unwrap();
+assert!(measured.tasks > 1000);
+```
+
+The numbers come from comparing Entl's languages on the
+[Rosetta Code](https://rosettacode.org) corpus, on the tasks each pair has in
+common. Because no two pairs share a task set, the ratios are not transitive,
+and the single index per language is a fit rather than a fact — each profile
+reports how far off that fit gets. See [docs/verbosity.md](docs/verbosity.md)
+for the method and its limits, and `tools/rosetta-verbosity` to regenerate it.
+Rosetta Code's own content is GFDL 1.2 and is not redistributed here; only the
+measurements are.
 
 ## Development
 

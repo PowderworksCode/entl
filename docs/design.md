@@ -104,6 +104,7 @@ affected scope without losing unrelated codebase facts.
 - registered language profiles and ecosystem roles;
 - registered factual language facets and typed profile relationships;
 - optional language conventions colocated with their owning profiles;
+- measured relative verbosity per language and per language pair;
 - registered tool profiles and command-to-task classification;
 - registered artifact profiles and project-scoped artifact instances;
 - manifest parsing;

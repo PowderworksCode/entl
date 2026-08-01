@@ -10,6 +10,7 @@ pub(crate) mod languages;
 mod tool;
 mod tools;
 mod traversal;
+mod verbosity;
 
 pub use artifact::{ArtifactProfile, ArtifactRegistration, artifact_profile, artifact_profiles};
 pub use artifacts::{BINARY_ARTIFACT, NAPI_ARTIFACT, SITE_ARTIFACT, TAURI_ARTIFACT};
@@ -43,6 +44,10 @@ pub use tool::{
 pub use tools::documentation::{CODESPELL, VALE};
 pub use tools::stylesheet::STYLELINT;
 pub use traversal::{TraversalDirectory, TraversalDirectoryRegistration, traversal_directories};
+pub use verbosity::{
+    LanguageVerbosity, VERBOSITY_BASELINE, VERBOSITY_CORPUS, VERBOSITY_CORPUS_REVISION,
+    VerbosityRatio, verbosity, verbosity_ratio, verbosity_ratios,
+};
 
 pub use convention::{
     LanguageConventions, TestLayoutDefaults, TypecheckConvention, language_conventions,

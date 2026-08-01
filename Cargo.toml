@@ -3,8 +3,11 @@ resolver = "3"
 members = [
     "crates/entl-codebase",
     "crates/entl-github",
+    "crates/entl-semantics",
     "crates/entl-tree-sitter",
 ]
+
+exclude = ["crates/entl-rust-mir"]
 
 [workspace.package]
 version = "0.0.0"

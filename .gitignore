@@ -1,2 +1,4 @@
-/target/
-
+# Any Cargo target directory, at any depth. `entl-rust-mir` is its own
+# workspace so that its pinned nightly stays out of everyone else's build, and
+# a root-anchored pattern would miss the target directory that comes with it.
+target/

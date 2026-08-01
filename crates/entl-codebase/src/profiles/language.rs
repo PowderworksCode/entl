@@ -4,7 +4,9 @@ use std::sync::LazyLock;
 
 use crate::{LanguageDetection, LanguageEvidence, LanguageId};
 
-use super::{LanguageConventions, LanguageFacet, language_facets, registry};
+use super::{
+    LanguageConventions, LanguageFacet, LanguageVerbosity, language_facets, registry, verbosity,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LanguageRole {
@@ -59,6 +61,14 @@ impl LanguageProfile {
         self.supersedes
             .iter()
             .any(|profile| std::ptr::eq(*profile, other))
+    }
+
+    /// How much source text this language needs relative to
+    /// [`VERBOSITY_BASELINE`](super::VERBOSITY_BASELINE), where the Rosetta
+    /// Code corpus covers it. Languages with no algorithmic presence in that
+    /// corpus, such as CSS or YAML, have no measurement.
+    pub fn verbosity(&self) -> Option<&'static LanguageVerbosity> {
+        verbosity(self.id)
     }
 
     pub fn has_facet(&self, facet: &LanguageFacet) -> bool {

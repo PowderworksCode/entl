@@ -1,0 +1,19 @@
+[package]
+name = "rosetta-verbosity"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Measures relative language verbosity from the Rosetta Code corpus."
+
+# Deliberately outside the Entl workspace. This is a data tool, not part of the
+# library: it needs a multi-gigabyte third-party corpus that Entl neither ships
+# nor depends on, and its only product is the checked-in table it regenerates.
+[workspace]
+
+[[bin]]
+name = "rosetta-verbosity"
+path = "src/main.rs"
+
+[dependencies]
+entl-codebase = { path = "../../crates/entl-codebase" }

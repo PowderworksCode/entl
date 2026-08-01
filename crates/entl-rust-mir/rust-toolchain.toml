@@ -1,0 +1,5 @@
+# Pinned deliberately. `rustc_public` rides nightly, so an unpinned channel
+# turns an upstream compiler change into a build break here.
+[toolchain]
+channel = "nightly-2026-07-18"
+components = ["rustc-dev", "rust-src", "llvm-tools"]

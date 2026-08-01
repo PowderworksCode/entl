@@ -1,0 +1,19 @@
+[package]
+name = "entl-rust-mir"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+description = "Observes resolved Rust semantics by running as the compiler."
+
+# Deliberately outside the Entl workspace. This crate runs on a pinned nightly
+# with the compiler's private crates; the rest of Entl builds on stable, and
+# keeping them apart is what stops one toolchain requirement becoming everyone's.
+[workspace]
+
+[[bin]]
+name = "entl-rust-mir"
+path = "src/main.rs"
+
+[dependencies]
+entl-semantics = { path = "../entl-semantics" }
+serde_json = "1"

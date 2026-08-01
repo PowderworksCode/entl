@@ -19,6 +19,22 @@ in full below.
 The `parser.toml` manifests and the `queries/` files under `parser-packs/` are
 Entl's own work and fall under Entl's license.
 
+## Rosetta Code
+
+The verbosity numbers in `crates/entl-codebase/src/profiles/verbosity.rs` and
+`docs/verbosity.md` are derived from [Rosetta Code](https://rosettacode.org),
+read through the [Rosetta Code Data](https://github.com/acmeism/RosettaCodeData)
+mirror by `tools/rosetta-verbosity`.
+
+Rosetta Code content is licensed under the
+[GNU Free Documentation License 1.2](https://www.gnu.org/licenses/old-licenses/fdl-1.2.en.html),
+which [its copyright page](https://rosettacode.org/wiki/Rosetta_Code:Copyrights)
+notes "is not compatible with most software licenses, including OSI-approved
+licenses such as the GPL". No Rosetta Code content is redistributed here. The
+tool reads a corpus checkout the operator downloads, and what it writes back is
+statistics — task counts, size ratios, and a fitted index. Those measurements
+are Entl's own work and fall under Entl's license.
+
 ## tree-sitter-rust
 
 ```

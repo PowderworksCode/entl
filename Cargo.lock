@@ -345,6 +345,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "entl-semantics"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "entl-tree-sitter"
 version = "0.0.0"
 dependencies = [
