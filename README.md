@@ -192,8 +192,11 @@ program is a different quantity and can run the other way: Bun's Zig-to-Rust
 rewrite expanded by about 1.37x in tokens, while independently written Rust and
 Zig solutions put Rust *below* Zig.
 
-Regenerate with `tools/verbosity`; neither corpus is redistributed here, only
-the measurements.
+Regenerate with `tools/verbosity`; no corpus is redistributed here, only the
+measurements. [notes/verbosity.md](notes/verbosity.md) is the analysis of
+record: what the corpora disagree about, why the index is a ranking device
+rather than a constant, and which candidate corpora were rejected and on what
+evidence.
 
 ## Development
 

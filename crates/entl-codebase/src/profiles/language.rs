@@ -64,9 +64,13 @@ impl LanguageProfile {
     }
 
     /// How much source text this language needs relative to
-    /// [`VERBOSITY_BASELINE`](super::VERBOSITY_BASELINE), where the Rosetta
-    /// Code corpus covers it. Languages with no algorithmic presence in that
-    /// corpus, such as CSS or YAML, have no measurement.
+    /// [`VERBOSITY_BASELINE`](super::VERBOSITY_BASELINE), on the corpus named
+    /// by [`VERBOSITY_CORPUS`](super::VERBOSITY_CORPUS). Languages with no
+    /// algorithmic presence there, such as CSS or YAML, have no measurement.
+    ///
+    /// The number is as much a property of that corpus as of the language.
+    /// Measured on a mid-sized program instead of small exercises, the same
+    /// languages spread about twice as far apart; see `notes/verbosity.md`.
     pub fn verbosity(&self) -> Option<&'static LanguageVerbosity> {
         verbosity(self.id)
     }
@@ -208,7 +212,7 @@ pub fn detect_language(path: &Path, prefix: Option<&[u8]>) -> Option<LanguageDet
 
     let prefix = prefix?;
     let first_line = prefix.split(|byte| *byte == b'\n').next()?;
-    let shebang = std::str::from_utf8(first_line).ok()?.strip_prefix("#!")?;
+    let shebang = std::str::from_utf8(first_line).ok()?.strip_prefix("#!")?; // straitjacket-allow:error-discard — a file whose first line is not UTF-8 has no shebang
     let normalized = shebang.to_ascii_lowercase();
     let profile = language_profiles().iter().copied().find(|profile| {
         profile

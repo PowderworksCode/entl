@@ -1,0 +1,54 @@
+entl — todo
+
+## Parser-pack queries for the discarded-error check
+
+Infact's `infact-rust-errors` recognizes discarded-error forms (`let _ =`,
+`.ok()`, `Err(_)` arms, `Ok(..)` bindings, `filter_map(Result::ok)`,
+`.unwrap_or*`, `map_err(|_| ..)`, `unwrap`/`expect`) by matching Rust
+tree-sitter node kinds in Rust code. The FACTS are already language-neutral —
+`DiscardForm`, `Containment`, `Certainty`, and `Reach` name no Rust concept —
+so only recognition is language-bound. Every language has the same policy in a
+different spelling:
+
+  - TS/JS  empty `catch {}`, `.catch(() => null)`, unawaited promise, `void f()`
+  - Zig    `catch {}`, `catch unreachable`, `_ = f()`
+  - Go     `_ = err`, an `if err != nil {}` with an empty body
+
+[ ] Load `queries/*.scm` from parser packs
+    - The packs ALREADY ship them (rust/queries has comments.scm, highlights.scm,
+      injections.scm), vendored from the upstream grammars. Nothing in
+      `entl-tree-sitter` reads them — grep for `Query`/`.scm` finds no loader.
+      This is the actual prerequisite; everything else is downstream of it.
+    - Wants: pack-time compile against the loaded language, so a query that does
+      not compile fails pack load rather than silently matching nothing.
+      A query that matches nothing is exactly the quiet failure this whole
+      check exists to find; it must not be possible to ship one.
+
+[ ] Express discard forms as `queries/discards.scm`
+    - One capture per form, named after the `DiscardForm` variant:
+      `@discard.let-underscore`, `@discard.ok`, `@discard.err-arm`, ...
+    - A `@containment` capture on the enclosing callable's return type, which is
+      what decides whether the error had any route out.
+    - Then a new language is a pack file, not a new crate.
+
+NOT expressible as queries — these stay per-language data in `parser.toml`:
+  - `Certainty`. `.ok()` proves a Result; `.unwrap_or_default()` reads the same
+    on Option. Which forms are provable is a fact about the language's stdlib.
+  - The query-result exclusion list. `binary_search*` and `Path::strip_prefix`
+    return `Result` where `Err` is an ANSWER ("not present", "not under this
+    prefix"), not a failure. Reporting those buries the real findings — it was
+    ~10 of the first 75 findings. Every language has its own such list.
+
+## Shared Rust call graph (deduplicate)
+
+`infact-rust-effects` and `infact-rust-errors` each build their own callable +
+call-edge collection over the same Rust trees. Effects resolves into external
+std catalogs; errors only needs repository-local caller->callee edges, so the
+resolvers differ — but `collect_callables`, `repository_module`, `source_span`,
+`node_text`, and `simple_type_name` are duplicated outright.
+
+[ ] Extract `infact-rust-callgraph`
+    - Callable/SyntaxCall/ResolvedCall + collection + span/module helpers.
+    - Both crates depend on it; each keeps its own resolution policy.
+    - Infact's own `exact-clone` rule will find this eventually. Better to move
+      first than to suppress it.

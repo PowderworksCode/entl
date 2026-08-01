@@ -95,6 +95,14 @@ src/emit.rs            renders the generated table and the report
 second, private copy of every language's comment rules would drift from the
 profiles the numbers claim to describe.
 
+## Background
+
+[notes/verbosity.md](../../notes/verbosity.md) records what these numbers turned
+out to be worth: the corpora rank the languages alike and disagree on magnitude
+by up to a factor of two, the spread roughly doubles on a mid-sized program, and
+this measures writing-from-a-spec rather than porting. It also lists the corpora
+that were evaluated and rejected, so the next search can start further along.
+
 ## Why the matrix and not just the index
 
 Every pair is measured only on tasks both languages implement, and no two pairs
