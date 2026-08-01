@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! The driver's contract: a call resolves to the same definition however it is
 //! written, and what was not attempted is reported rather than implied.
 

@@ -5,12 +5,14 @@
 //! of the resulting concrete syntax trees.
 
 mod catalog;
+mod dialect;
 mod error;
 mod manifest;
 mod repository;
 mod runtime;
 
 pub use catalog::{CatalogDiscovery, ParserCatalog, ParserPack};
+pub use dialect::{Rewritten, neutralize};
 pub use error::{Error, Result};
 pub use manifest::{
     FileSelectionManifest, MANIFEST_FILENAME, ParserPackManifest, TokenizationManifest,

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Checks the generated verbosity table against the profiles it describes.
 //!
 //! The numbers themselves come from `tools/verbosity` and change when

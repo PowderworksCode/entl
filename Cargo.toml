@@ -30,5 +30,12 @@ thiserror = "2"
 toml = "1"
 tree-sitter = { version = "0.26", features = ["wasm"] }
 
+[workspace.lints.rust]
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+let_underscore_must_use = "deny"
+
 [profile.release]
 lto = "thin"

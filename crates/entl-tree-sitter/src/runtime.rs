@@ -16,6 +16,11 @@ pub struct ParseProvenance {
 
 #[derive(Debug)]
 pub struct ParsedFile {
+    /// Why the source had to be rewritten before the grammar would read it.
+    ///
+    /// Empty for source the grammar accepts as written. A consumer that cares
+    /// whether it is looking at the file as the author wrote it can check.
+    pub rewrites: Vec<&'static str>,
     pub path: PathBuf,
     pub source: Arc<[u8]>,
     pub tree: Tree,
@@ -65,10 +70,26 @@ impl LoadedParser {
                 pack: self.pack.manifest().id.clone(),
                 message: error.to_string(),
             })?;
-        let tree = parser
+        let mut tree = parser
             .parse(source.as_ref(), None)
             .ok_or_else(|| Error::ParseCancelled { path: path.clone() })?;
 
+        // A grammar rejects a whole file when any part of it is beyond what it
+        // knows, so a single unsupported keyword removes everything beside it.
+        // Retrying without that keyword recovers the rest. Only source that
+        // already failed is rewritten, so an accepted file is never altered.
+        let mut source = source;
+        let mut rewrites = Vec::new();
+        if tree.root_node().has_error()
+            && let Some(rewritten) =
+                crate::dialect::neutralize(self.pack.language().id, source.as_ref())
+            && let Some(retried) = parser.parse(rewritten.source.as_slice(), None)
+            && !retried.root_node().has_error()
+        {
+            source = Arc::<[u8]>::from(rewritten.source);
+            rewrites = rewritten.reasons;
+            tree = retried;
+        }
         Ok(ParsedFile {
             path,
             provenance: ParseProvenance {
@@ -80,6 +101,7 @@ impl LoadedParser {
             pack: self.pack.clone(),
             source,
             tree,
+            rewrites,
         })
     }
 }

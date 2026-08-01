@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use entl_codebase::{
     EcosystemProfile, EcosystemRegistration, EcosystemRole, LanguageConventions, LanguageFacet,
     LanguageFacetRegistration, LanguageProfile, LanguageRegistration, LanguageRole,
