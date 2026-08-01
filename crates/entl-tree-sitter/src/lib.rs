@@ -18,4 +18,6 @@ pub use manifest::{
     FileSelectionManifest, MANIFEST_FILENAME, ParserPackManifest, TokenizationManifest,
 };
 pub use repository::{ParseDiagnostic, ParsedRepository, parse_repository};
-pub use runtime::{LoadedParser, ParseProvenance, ParsedFile, ParserRuntime};
+pub use runtime::{
+    LoadedParser, ParseProvenance, ParsedFile, ParserRuntime, QueryCapture, QueryMatch,
+};

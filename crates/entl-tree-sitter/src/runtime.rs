@@ -1,8 +1,12 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use sha2::{Digest, Sha256};
-use tree_sitter::{Language, Parser, Tree, WasmStore, wasmtime::Engine};
+use tree_sitter::{
+    Language, Node, Parser, Query, QueryCursor, StreamingIterator, Tree, WasmStore,
+    wasmtime::Engine,
+};
 
 use crate::{Error, ParserPack, Result};
 
@@ -28,10 +32,42 @@ pub struct ParsedFile {
     pub provenance: ParseProvenance,
 }
 
+/// One node a query captured, under the name the query gave it.
+#[derive(Debug, Clone, Copy)]
+pub struct QueryCapture<'a> {
+    pub name: &'a str,
+    pub node: Node<'a>,
+}
+
+/// One match of a query against a tree.
+///
+/// A capture that a pattern marks optional is simply absent when it did not
+/// match, which is how a query says "no binding here" — Tree-sitter queries
+/// have no negation, so absence is the only way to express it.
+#[derive(Debug, Clone)]
+pub struct QueryMatch<'a> {
+    pub pattern: usize,
+    pub captures: Vec<QueryCapture<'a>>,
+}
+
+impl<'a> QueryMatch<'a> {
+    pub fn capture(&self, name: &str) -> Option<Node<'a>> {
+        self.captures
+            .iter()
+            .find(|capture| capture.name == name)
+            .map(|capture| capture.node)
+    }
+
+    pub fn has(&self, name: &str) -> bool {
+        self.captures.iter().any(|capture| capture.name == name)
+    }
+}
+
 pub struct LoadedParser {
     engine: Engine,
     pack: Arc<ParserPack>,
     language: Language,
+    queries: BTreeMap<String, Query>,
 }
 
 impl std::fmt::Debug for LoadedParser {
@@ -46,6 +82,46 @@ impl std::fmt::Debug for LoadedParser {
 impl LoadedParser {
     pub fn pack(&self) -> &ParserPack {
         &self.pack
+    }
+
+    /// A compiled query this pack ships, by name.
+    pub fn query(&self, name: &str) -> Option<&Query> {
+        self.queries.get(name)
+    }
+
+    pub fn query_names(&self) -> impl Iterator<Item = &str> {
+        self.queries.keys().map(String::as_str)
+    }
+
+    /// Run one of this pack's queries over a parsed file.
+    ///
+    /// Asking for a query the pack does not ship is an error rather than an
+    /// empty result: a consumer that named the wrong query would otherwise see
+    /// what a genuinely clean file looks like.
+    pub fn matches<'a>(&'a self, name: &str, file: &'a ParsedFile) -> Result<Vec<QueryMatch<'a>>> {
+        let query = self.queries.get(name).ok_or_else(|| Error::UnknownQuery {
+            pack: self.pack.manifest().id.clone(),
+            query: name.to_owned(),
+            available: self.query_names().collect::<Vec<_>>().join(", "),
+        })?;
+        let names = query.capture_names();
+        let mut cursor = QueryCursor::new();
+        let mut found = Vec::new();
+        let mut matches = cursor.matches(query, file.tree.root_node(), file.source.as_ref());
+        while let Some(matched) = StreamingIterator::next(&mut matches) {
+            found.push(QueryMatch {
+                pattern: matched.pattern_index,
+                captures: matched
+                    .captures
+                    .iter()
+                    .map(|capture| QueryCapture {
+                        name: names[capture.index as usize],
+                        node: capture.node,
+                    })
+                    .collect(),
+            });
+        }
+        Ok(found)
     }
 
     pub fn parse(
@@ -143,10 +219,27 @@ impl ParserRuntime {
                 actual,
             });
         }
+        // Compile here, where the failure can still stop the load. A query
+        // that does not compile would otherwise match nothing, and a rule that
+        // matches nothing reports nothing, which reads as a clean repository.
+        let mut queries = BTreeMap::new();
+        for (name, source) in pack.queries() {
+            let query =
+                Query::new(&language, source).map_err(|error| Error::CompileQuery {
+                    pack: pack.manifest().id.clone(),
+                    query: name.clone(),
+                    message: format!(
+                        "at row {}, offset {}: {}",
+                        error.row, error.offset, error.message
+                    ),
+                })?;
+            queries.insert(name.clone(), query);
+        }
         Ok(LoadedParser {
             engine: self.engine.clone(),
             pack,
             language,
+            queries,
         })
     }
 }

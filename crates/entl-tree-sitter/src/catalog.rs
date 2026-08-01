@@ -7,12 +7,23 @@ use sha2::{Digest, Sha256};
 
 use crate::{Error, MANIFEST_FILENAME, ParserPackManifest, Result};
 
+/// Where a pack keeps its Tree-sitter queries, by convention rather than
+/// manifest declaration, which is how the wider Tree-sitter ecosystem ships
+/// them and is what makes an upstream grammar's queries usable as vendored.
+const QUERY_DIRECTORY: &str = "queries";
+const QUERY_EXTENSION: &str = "scm";
+
 #[derive(Debug, Clone)]
 pub struct ParserPack {
     directory: PathBuf,
     manifest: ParserPackManifest,
     language: &'static LanguageProfile,
     grammar: Arc<[u8]>,
+    /// Query sources by name, which is the file stem. Compiling them needs a
+    /// loaded grammar, so a pack carries the text and a parser carries the
+    /// compiled form.
+    queries: BTreeMap<String, Arc<str>>,
+    queries_sha256: String,
 }
 
 impl ParserPack {
@@ -39,11 +50,14 @@ impl ParserPack {
             });
         }
 
+        let queries = read_queries(directory)?;
         Ok(Self {
             directory: directory.to_path_buf(),
             manifest,
             language,
             grammar: grammar.into(),
+            queries_sha256: queries_digest(&queries),
+            queries,
         })
     }
 
@@ -61,6 +75,20 @@ impl ParserPack {
 
     pub fn grammar(&self) -> &[u8] {
         &self.grammar
+    }
+
+    /// The query sources this pack ships, by name.
+    pub fn queries(&self) -> &BTreeMap<String, Arc<str>> {
+        &self.queries
+    }
+
+    /// A digest over every query this pack ships.
+    ///
+    /// A fact derived through a query depends on that query's text as much as
+    /// on the grammar, so provenance that records only `sha256` cannot say
+    /// which rules produced it.
+    pub fn queries_sha256(&self) -> &str {
+        &self.queries_sha256
     }
 
     pub fn matches(&self, path: &Path) -> bool {
@@ -108,11 +136,20 @@ impl ParserCatalog {
                     continue;
                 }
             };
-            let mut children = entries
-                .filter_map(std::result::Result::ok)
-                .map(|entry| entry.path())
-                .filter(|path| path.join(MANIFEST_FILENAME).is_file())
-                .collect::<Vec<_>>();
+            // An unreadable entry would otherwise drop a parser pack silently,
+            // and a missing pack reads downstream as "this language has no
+            // rules" rather than "this language was not looked at".
+            let mut children = Vec::new();
+            for entry in entries {
+                match entry {
+                    Ok(entry) => children.push(entry.path()),
+                    Err(source) => discovery.errors.push(Error::Read {
+                        path: search_path.clone(),
+                        source,
+                    }),
+                }
+            }
+            children.retain(|path| path.join(MANIFEST_FILENAME).is_file());
             children.sort();
             directories.extend(children);
         }
@@ -193,6 +230,64 @@ fn filename_extension(filename: &str) -> Option<String> {
 pub struct CatalogDiscovery {
     pub catalog: ParserCatalog,
     pub errors: Vec<Error>,
+}
+
+/// Read every `queries/*.scm` a pack ships.
+///
+/// A pack with no query directory simply has no queries. A directory that
+/// cannot be read, or a file in it that cannot be read, is an error: a query
+/// that silently goes missing matches nothing, and a rule that matches nothing
+/// reports nothing, which is indistinguishable from a clean repository.
+fn read_queries(directory: &Path) -> Result<BTreeMap<String, Arc<str>>> {
+    let root = directory.join(QUERY_DIRECTORY);
+    if !root.is_dir() {
+        return Ok(BTreeMap::new());
+    }
+    let entries = std::fs::read_dir(&root).map_err(|source| Error::Read {
+        path: root.clone(),
+        source,
+    })?;
+    let mut queries = BTreeMap::new();
+    for entry in entries {
+        let entry = entry.map_err(|source| Error::Read {
+            path: root.clone(),
+            source,
+        })?;
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some(QUERY_EXTENSION) {
+            continue;
+        }
+        let Some(name) = path.file_stem().and_then(|stem| stem.to_str()) else {
+            continue;
+        };
+        let source = std::fs::read_to_string(&path).map_err(|source| Error::Read {
+            path: path.clone(),
+            source,
+        })?;
+        queries.insert(name.to_owned(), Arc::from(source.as_str()));
+    }
+    Ok(queries)
+}
+
+/// A digest over the query set, stable across filesystem ordering.
+fn queries_digest(queries: &BTreeMap<String, Arc<str>>) -> String {
+    let mut hasher = Sha256::new();
+    for (name, source) in queries {
+        hasher.update(name.as_bytes());
+        hasher.update([0]);
+        hasher.update(source.as_bytes());
+        hasher.update([0]);
+    }
+    hex_digest_of(&hasher.finalize())
+}
+
+fn hex_digest_of(bytes: &[u8]) -> String {
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write;
+        write!(&mut output, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    output
 }
 
 fn normalize_digest(pack: &str, digest: &str) -> Result<String> {

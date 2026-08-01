@@ -91,7 +91,7 @@ pub(crate) fn inspect(codebase: &CodebaseInventory) -> DependabotInventory {
         });
     }
     let configuration = files.iter().next().and_then(|path| {
-        parse(codebase, path)
+        parse(codebase, path) // straitjacket-allow:error-discard — the cause is recorded as a diagnostic just above
             .map_err(|message| {
                 diagnostics.push(Diagnostic {
                     path: path.clone(),

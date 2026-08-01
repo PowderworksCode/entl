@@ -1,9 +1,10 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use entl_codebase::{InventoryOptions, walk};
 
-use crate::{ParsedFile, ParserCatalog, ParserRuntime, Result};
+use crate::{LoadedParser, ParsedFile, ParserCatalog, ParserRuntime, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseDiagnostic {
@@ -15,6 +16,11 @@ pub struct ParseDiagnostic {
 pub struct ParsedRepository {
     pub files: Vec<ParsedFile>,
     pub diagnostics: Vec<ParseDiagnostic>,
+    /// The loaded parsers, by pack id, so a consumer can run a pack's queries.
+    ///
+    /// A compiled query belongs to the grammar it was compiled against, so it
+    /// cannot live on the pack, which is shared across runtimes.
+    pub parsers: BTreeMap<String, LoadedParser>,
 }
 
 pub fn parse_repository(
@@ -30,7 +36,7 @@ pub fn parse_repository(
                 .load(pack.clone())
                 .map(|parser| (pack.manifest().id.clone(), parser))
         })
-        .collect::<Result<std::collections::BTreeMap<_, _>>>()?;
+        .collect::<Result<BTreeMap<_, _>>>()?;
     let mut diagnostics = tree
         .diagnostics
         .iter()
@@ -69,12 +75,56 @@ pub fn parse_repository(
         if parsed.tree.root_node().has_error() {
             diagnostics.push(ParseDiagnostic {
                 path: file.path.clone(),
-                message: "Tree-sitter parse contains error nodes".to_owned(),
+                message: first_error(&parsed),
             });
             continue;
         }
         files.push(parsed);
     }
 
-    Ok(ParsedRepository { files, diagnostics })
+    Ok(ParsedRepository {
+        files,
+        diagnostics,
+        parsers,
+    })
+}
+
+/// Where a parse first went wrong, and what the source says there.
+///
+/// A grammar that rejects a file rejects all of it, so knowing which construct
+/// defeated it is the difference between "this file was skipped" and knowing
+/// what to do about it.
+fn first_error(parsed: &ParsedFile) -> String {
+    let mut cursor = parsed.tree.walk();
+    let mut stack = vec![parsed.tree.root_node()];
+    let mut earliest: Option<tree_sitter::Node<'_>> = None;
+    while let Some(node) = stack.pop() {
+        // An error node swallows everything it could not make sense of, so the
+        // outermost one spans the file and says nothing. The narrowest one is
+        // the closest thing to the construct that actually defeated the parse.
+        let width = |node: tree_sitter::Node<'_>| node.end_byte() - node.start_byte();
+        if (node.is_error() || node.is_missing())
+            && earliest.is_none_or(|found| width(node) < width(found))
+        {
+            earliest = Some(node);
+        }
+        stack.extend(node.children(&mut cursor));
+    }
+    let Some(node) = earliest else {
+        return "Tree-sitter parse contains error nodes".to_owned();
+    };
+    let line = node.start_position().row + 1;
+    let excerpt = parsed
+        .source
+        .get(node.byte_range())
+        .and_then(|bytes| std::str::from_utf8(bytes).ok()) // straitjacket-allow:error-discard — an excerpt for an error message degrades to empty
+        .unwrap_or_default()
+        .split('\n')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .chars()
+        .take(60)
+        .collect::<String>();
+    format!("line {line}: the grammar cannot read `{excerpt}`")
 }

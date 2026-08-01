@@ -64,6 +64,20 @@ pub enum Error {
     #[error("could not configure parser pack {pack:?}: {message}")]
     ConfigureParser { pack: String, message: String },
 
+    #[error("parser pack {pack:?} query {query:?} does not compile: {message}")]
+    CompileQuery {
+        pack: String,
+        query: String,
+        message: String,
+    },
+
+    #[error("parser pack {pack:?} has no query named {query:?}; it has [{available}]")]
+    UnknownQuery {
+        pack: String,
+        query: String,
+        available: String,
+    },
+
     #[error("Tree-sitter cancelled parsing {path}")]
     ParseCancelled { path: PathBuf },
 }

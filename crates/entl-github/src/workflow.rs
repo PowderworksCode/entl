@@ -284,7 +284,9 @@ fn classify_script(
         .map(str::trim)
         .filter(|line| !line.is_empty())
     {
+        // a line that is not shell is not an invocation
         let Ok(tokens) = shell_words::split(line) else {
+            // straitjacket-allow:error-discard
             continue;
         };
         for command in command_segments(&tokens) {

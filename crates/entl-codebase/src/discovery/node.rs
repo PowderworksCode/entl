@@ -114,16 +114,24 @@ fn parse(root: &Path, file_paths: &BTreeSet<PathBuf>, path: &Path) -> ManifestFa
         explicit_workspaces: BTreeMap::new(),
         diagnostics: Vec::new(),
     };
+    // Which of the two went wrong is the whole diagnostic: a missing file and
+    // a syntax error need different answers from whoever reads this.
     let parsed = std::fs::read_to_string(root.join(path))
-        .ok()
-        .and_then(|text| serde_json::from_str::<NodeManifest>(&text).ok());
-    let Some(parsed) = parsed else {
-        facts.diagnostics.push(Diagnostic {
-            kind: DiagnosticKind::Manifest,
-            path: path.to_path_buf(),
-            message: "package.json is unreadable or invalid JSON".to_owned(),
+        .map_err(|error| format!("package.json is unreadable: {error}"))
+        .and_then(|text| {
+            serde_json::from_str::<NodeManifest>(&text)
+                .map_err(|error| format!("package.json is invalid JSON: {error}"))
         });
-        return facts;
+    let parsed = match parsed {
+        Ok(parsed) => parsed,
+        Err(message) => {
+            facts.diagnostics.push(Diagnostic {
+                kind: DiagnosticKind::Manifest,
+                path: path.to_path_buf(),
+                message,
+            });
+            return facts;
+        }
     };
 
     let package_root = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();

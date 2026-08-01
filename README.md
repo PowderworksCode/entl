@@ -101,6 +101,30 @@ code. Each pack's `parser.toml` pins the upstream repository, revision, version,
 license, and the artifact's `sha256`. Upstream licenses are reproduced in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
+A pack may also ship Tree-sitter queries as `queries/*.scm`, named by file stem,
+which is the convention the wider ecosystem uses and what makes an upstream
+grammar's own queries usable as vendored. A pack carries the query text;
+compiling needs a loaded grammar, so `ParserRuntime::load` compiles them and a
+query that does not compile fails the load. That is deliberate: a broken query
+matches nothing, and a consumer that matches nothing reports nothing, which is
+indistinguishable from source that is genuinely clean.
+
+`LoadedParser::matches` runs a query over a parsed file and returns each match
+with its captures named. Naming a query the pack does not ship is an error
+rather than an empty result, for the same reason. Queries have no negation, so
+a pattern says "nothing here" by marking a capture optional and letting it be
+absent from the match — `QueryMatch::has` is how a consumer reads that:
+
+```scm
+((match_arm pattern: (match_pattern
+   (tuple_struct_pattern type: (identifier) @variant (identifier)? @bind))) @arm
+ (#eq? @variant "Err"))
+```
+
+`Err(_)` matches without `@bind`; `Err(e)` matches with it. `ParserPack::queries_sha256`
+digests the query set, because a fact derived through a query depends on that
+query's text as much as on the grammar.
+
 ## Workspace
 
 ```text

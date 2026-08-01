@@ -113,7 +113,7 @@ pub fn neutralize(language: impl AsRef<str>, source: &[u8]) -> Option<Rewritten>
     if language != "rust" {
         return None;
     }
-    let text = std::str::from_utf8(source).ok()?;
+    let text = std::str::from_utf8(source).ok()?; // straitjacket-allow:error-discard — non-UTF-8 source declares no dialect
     let mut output = text.to_owned();
     let mut reasons = Vec::new();
     for rewrite in RUST_REWRITES {
@@ -163,10 +163,13 @@ fn is_word_boundary(text: &str, start: usize, end: usize) -> bool {
 }
 
 fn context_matches(text: &str, start: usize, end: usize, rewrite: &Rewrite) -> bool {
-    if let Some(after) = rewrite.after
-        && !text[..start].trim_end().ends_with(after)
-    {
-        return false;
+    if let Some(after) = rewrite.after {
+        // `impl<T> const Trait` puts a generic list between the two, so a
+        // trailing parameter list is stepped over before the check.
+        let preceding = without_trailing_generics(text[..start].trim_end());
+        if !preceding.trim_end().ends_with(after) {
+            return false;
+        }
     }
     if let Some(before) = rewrite.before
         && !text[end..].trim_start().starts_with(before)
@@ -174,6 +177,27 @@ fn context_matches(text: &str, start: usize, end: usize, rewrite: &Rewrite) -> b
         return false;
     }
     true
+}
+
+/// A prefix with any trailing `<..>` removed, brackets balanced.
+fn without_trailing_generics(text: &str) -> &str {
+    if !text.ends_with('>') {
+        return text;
+    }
+    let mut depth = 0usize;
+    for (index, character) in text.char_indices().rev() {
+        match character {
+            '>' => depth += 1,
+            '<' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &text[..index];
+                }
+            }
+            _ => {}
+        }
+    }
+    text
 }
 
 #[cfg(test)]
@@ -238,6 +262,22 @@ mod tests {
             !rewrite("pub auto trait Send {}")
                 .unwrap()
                 .contains("auto trait")
+        );
+    }
+
+    #[test]
+    fn generics_between_impl_and_const_do_not_hide_it() {
+        let rewritten = rewrite("impl<T> const IntoIterator for Option<T> {}").unwrap();
+        assert!(!rewritten.contains("const"), "{rewritten}");
+        assert_eq!(
+            rewritten.len(),
+            "impl<T> const IntoIterator for Option<T> {}".len()
+        );
+        // nested generics too
+        assert!(
+            !rewrite("impl<T: Into<U>, U> const Foo for T {}")
+                .unwrap()
+                .contains("const")
         );
     }
 

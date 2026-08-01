@@ -14,22 +14,50 @@ different spelling:
   - Zig    `catch {}`, `catch unreachable`, `_ = f()`
   - Go     `_ = err`, an `if err != nil {}` with an empty body
 
-[ ] Load `queries/*.scm` from parser packs
-    - The packs ALREADY ship them (rust/queries has comments.scm, highlights.scm,
-      injections.scm), vendored from the upstream grammars. Nothing in
-      `entl-tree-sitter` reads them — grep for `Query`/`.scm` finds no loader.
-      This is the actual prerequisite; everything else is downstream of it.
-    - Wants: pack-time compile against the loaded language, so a query that does
-      not compile fails pack load rather than silently matching nothing.
-      A query that matches nothing is exactly the quiet failure this whole
-      check exists to find; it must not be possible to ship one.
+SPIKED AND VERIFIED against the checked-in rust pack (wasm grammar, ts 0.26).
+Every recognizer currently written in Rust is expressible as a query. The
+results, so nobody has to re-derive them:
+
+  - `Query::new` compiles fine against a wasm-loaded `Language`.
+  - The anonymous `_` pattern is matchable as a quoted node:
+      (let_declaration pattern: "_" value: (call_expression)) @d
+    matched `let _ = w()` and not `let x = w()`.
+  - Predicates work: `(#eq? @m "ok")` matched `.ok()` and not `.unwrap()`.
+  - THE ONE THAT MATTERED. Queries have no negation, and half the forms turn on
+    the ABSENCE of a binding (`Err(_)` vs `Err(e)`, `|_|` vs `|e|`). A quantified
+    capture solves it — the capture is simply missing from the match:
+      (tuple_struct_pattern type: (identifier) @t (identifier)? @bind)
+    `Err(_)` produced [d, t]; `Err(e)` produced [d, t, bind]. Same trick
+    separated `map_err(|_| X)` from `map_err(|e| X(e))`.
+    So the pack declares, per form, which captures must be ABSENT. That stays
+    data; no per-language Rust.
+
+[x] Load `queries/*.scm` from parser packs   -- DONE
+    - `ParserPack` reads the sources at pack load; `ParserRuntime::load`
+      compiles them against the loaded grammar. A query that does not compile
+      fails the load, and naming a query a pack does not ship is an error
+      rather than an empty result.
+    - `LoadedParser::matches(name, file)` returns matches with named captures;
+      `QueryMatch::has` reads capture ABSENCE, which is the negation substitute.
+    - `ParsedRepository.parsers` now carries the loaded parsers by pack id,
+      because a compiled query belongs to the grammar it was compiled against
+      and so cannot live on the shared `ParserPack`.
+    - `ParserPack::queries_sha256` digests the query set.
+
+[ ] Wire `queries_sha256` into `ParseProvenance` / `InputEvidence`
+    - A fact derived through a query depends on that query's text as much as on
+      the grammar, and provenance currently records only `grammar_sha256`. Two
+      runs with different discard queries would produce indistinguishable
+      provenance.
+    - Deliberately NOT done with the loader: it ripples into infact's
+      `InputEvidence` construction across several crates, and infact was busy.
+      The digest is already exposed, so this is a plumbing change.
 
 [ ] Express discard forms as `queries/discards.scm`
     - One capture per form, named after the `DiscardForm` variant:
       `@discard.let-underscore`, `@discard.ok`, `@discard.err-arm`, ...
-    - A `@containment` capture on the enclosing callable's return type, which is
-      what decides whether the error had any route out.
-    - Then a new language is a pack file, not a new crate.
+    - A `@containment` capture on the enclosing callable's return type.
+    - Per-form `absent = ["bind"]` in `parser.toml` for the negation cases.
 
 NOT expressible as queries — these stay per-language data in `parser.toml`:
   - `Certainty`. `.ok()` proves a Result; `.unwrap_or_default()` reads the same
@@ -38,6 +66,14 @@ NOT expressible as queries — these stay per-language data in `parser.toml`:
     return `Result` where `Err` is an ANSWER ("not present", "not under this
     prefix"), not a failure. Reporting those buries the real findings — it was
     ~10 of the first 75 findings. Every language has its own such list.
+  - Return-type classification. Deciding `Result` vs `Option` vs neither from
+    the captured type text is a per-language name list, not a query.
+
+STAYS RUST regardless of any of the above (~400 of the 744 lines):
+  the call graph, `resolve_reach`/`search_upward`, fact assembly, provenance.
+  Reach is a graph search, not a pattern match. Moving recognition to data
+  SHRINKS this crate to roughly a query-driven front end plus the graph; it does
+  not remove it.
 
 ## Shared Rust call graph (deduplicate)
 
@@ -52,3 +88,5 @@ resolvers differ — but `collect_callables`, `repository_module`, `source_span`
     - Both crates depend on it; each keeps its own resolution policy.
     - Infact's own `exact-clone` rule will find this eventually. Better to move
       first than to suppress it.
+    - Do this BEFORE the query work if both are planned: the query front end
+      should sit on the shared graph, not on a second private copy of it.

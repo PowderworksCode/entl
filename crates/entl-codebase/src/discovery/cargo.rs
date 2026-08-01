@@ -126,16 +126,24 @@ fn parse(root: &Path, path: &Path) -> ManifestFacts {
         explicit_workspaces: BTreeMap::new(),
         diagnostics: Vec::new(),
     };
+    // Which of the two went wrong is the whole diagnostic: a missing file and
+    // a syntax error need different answers from whoever reads this.
     let parsed = std::fs::read_to_string(root.join(path))
-        .ok()
-        .and_then(|text| toml::from_str::<CargoManifest>(&text).ok());
-    let Some(parsed) = parsed else {
-        facts.diagnostics.push(Diagnostic {
-            kind: DiagnosticKind::Manifest,
-            path: path.to_path_buf(),
-            message: "Cargo manifest is unreadable or invalid TOML".to_owned(),
+        .map_err(|error| format!("Cargo manifest is unreadable: {error}"))
+        .and_then(|text| {
+            toml::from_str::<CargoManifest>(&text)
+                .map_err(|error| format!("Cargo manifest is invalid TOML: {error}"))
         });
-        return facts;
+    let parsed = match parsed {
+        Ok(parsed) => parsed,
+        Err(message) => {
+            facts.diagnostics.push(Diagnostic {
+                kind: DiagnosticKind::Manifest,
+                path: path.to_path_buf(),
+                message,
+            });
+            return facts;
+        }
     };
 
     let package_root = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
