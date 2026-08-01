@@ -174,13 +174,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
-name = "rosetta-verbosity"
-version = "0.0.0"
-dependencies = [
- "entl-codebase",
-]
-
-[[package]]
 name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -347,6 +340,14 @@ name = "unsafe-libyaml"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
+
+[[package]]
+name = "verbosity"
+version = "0.0.0"
+dependencies = [
+ "entl-codebase",
+ "serde_json",
+]
 
 [[package]]
 name = "walkdir"

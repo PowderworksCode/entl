@@ -1,5 +1,5 @@
 [package]
-name = "rosetta-verbosity"
+name = "verbosity"
 version = "0.0.0"
 edition = "2024"
 license = "MIT"
@@ -12,8 +12,9 @@ description = "Measures relative language verbosity from the Rosetta Code corpus
 [workspace]
 
 [[bin]]
-name = "rosetta-verbosity"
+name = "verbosity"
 path = "src/main.rs"
 
 [dependencies]
 entl-codebase = { path = "../../crates/entl-codebase" }
+serde_json = "1"

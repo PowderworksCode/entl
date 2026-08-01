@@ -2,7 +2,7 @@
 //!
 //! Reads a local checkout of the Rosetta Code Data project, compares Entl's
 //! language profiles on the tasks they both implement, and regenerates
-//! `crates/entl-codebase/src/profiles/verbosity.rs` and `docs/verbosity.md`.
+//! `crates/entl-codebase/src/profiles/verbosity.rs` and `docs/verbosity-*.md`.
 //!
 //! Only derived statistics are written out. Rosetta Code's content is licensed
 //! under the GNU Free Documentation License 1.2, which Entl's MIT license
@@ -17,18 +17,17 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use corpus::Source;
 use stats::Metric;
 
-/// Below this many shared tasks a pair ratio is noise, not a measurement.
-const MINIMUM_SHARED_TASKS: u32 = 25;
-/// Below this many tasks overall a language cannot anchor a useful comparison.
-const MINIMUM_LANGUAGE_TASKS: usize = 50;
-/// Languages this well represented define the balanced panel, where every
-/// ratio comes from an identical set of tasks.
-const CORE_LANGUAGE_TASKS: usize = 600;
+/// A language covering this fraction of the corpus joins the balanced panel,
+/// where every ratio comes from an identical set of units. Expressed as a
+/// fraction because the corpora differ in size by an order of magnitude.
+const CORE_COVERAGE: f64 = 1.0 / 3.0;
 
 struct Options {
     corpus: PathBuf,
+    source: Option<Source>,
     root: PathBuf,
     baseline: String,
 }
@@ -37,7 +36,7 @@ fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("rosetta-verbosity: {error}");
+            eprintln!("verbosity: {error}");
             ExitCode::FAILURE
         }
     }
@@ -45,30 +44,42 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), String> {
     let options = parse()?;
-    eprintln!("reading {}", options.corpus.display());
-    let corpus = corpus::read(&options.corpus)?;
+    let source = match options.source {
+        Some(source) => source,
+        None => Source::detect(&options.corpus).ok_or_else(|| {
+            format!(
+                "cannot tell what {} is; pass --source rosetta or --source exercism",
+                options.corpus.display()
+            )
+        })?,
+    };
+    eprintln!("reading {} as {}", options.corpus.display(), source.label());
+    let corpus = corpus::read(source, &options.corpus)?;
     for note in &corpus.skipped {
         eprintln!("skipped {note}");
     }
 
+    let (minimum_shared, minimum_language) = source.floors();
     let samples = corpus
         .samples
         .into_iter()
-        .filter(|(_, tasks)| tasks.len() >= MINIMUM_LANGUAGE_TASKS)
+        .filter(|(_, tasks)| tasks.len() >= minimum_language)
         .collect::<BTreeMap<_, _>>();
     if !samples.contains_key(options.baseline.as_str()) {
         return Err(format!(
-            "baseline {} has fewer than {MINIMUM_LANGUAGE_TASKS} tasks in the corpus",
+            "baseline {} has fewer than {minimum_language} units in the corpus",
             options.baseline
         ));
     }
     eprintln!(
-        "{} tasks, {} languages above the {MINIMUM_LANGUAGE_TASKS}-task floor",
-        corpus.tasks,
-        samples.len()
+        "{} {}s, {} languages above the {minimum_language}-{} floor",
+        corpus.units,
+        source.unit(),
+        samples.len(),
+        source.unit()
     );
 
-    let pairs = stats::pairs(&samples, MINIMUM_SHARED_TASKS);
+    let pairs = stats::pairs(&samples, minimum_shared);
     if pairs.is_empty() {
         return Err("no language pair shares enough tasks to compare".to_owned());
     }
@@ -76,10 +87,11 @@ fn run() -> Result<(), String> {
     let bytes = stats::fit(&pairs, Metric::Bytes, &options.baseline);
     let lines = stats::fit(&pairs, Metric::Lines, &options.baseline);
 
+    let core_floor = (corpus.units as f64 * CORE_COVERAGE).ceil() as usize;
     let mut core = measured
         .iter()
         .copied()
-        .filter(|language| samples[language].len() >= CORE_LANGUAGE_TASKS)
+        .filter(|language| samples[language].len() >= core_floor)
         .collect::<Vec<_>>();
     if !core.contains(&options.baseline.as_str()) {
         core.push(
@@ -94,14 +106,16 @@ fn run() -> Result<(), String> {
     let panel = stats::balanced_panel(&samples, &core);
     let balanced = stats::balanced_index(&samples, &core, &panel, Metric::Bytes, &options.baseline);
     eprintln!(
-        "balanced panel: {} tasks across {} languages",
+        "balanced panel: {} {}s across {} languages (floor {core_floor})",
         panel.len(),
+        source.unit(),
         core.len()
     );
 
     let report = emit::Report {
+        source,
         revision: &corpus.revision,
-        tasks: corpus.tasks,
+        tasks: corpus.units,
         baseline: &options.baseline,
         samples: &samples,
         pairs: &pairs,
@@ -110,14 +124,16 @@ fn run() -> Result<(), String> {
         core: &core,
         panel: panel.len(),
         balanced: &balanced,
-        minimum_shared_tasks: MINIMUM_SHARED_TASKS,
-        minimum_language_tasks: MINIMUM_LANGUAGE_TASKS,
+        minimum_shared_tasks: minimum_shared,
+        minimum_language_tasks: minimum_language,
     };
 
     let table = options
         .root
         .join("crates/entl-codebase/src/profiles/verbosity.rs");
-    let document = options.root.join("docs/verbosity.md");
+    let document = options
+        .root
+        .join(format!("docs/verbosity-{}.md", source.id()));
     write(&table, &emit::table(&report))?;
     write(&document, &emit::document(&report))?;
     format(&table)?;
@@ -150,6 +166,7 @@ fn format(path: &Path) -> Result<(), String> {
 
 fn parse() -> Result<Options, String> {
     let mut corpus = None;
+    let mut source = None;
     let mut root = None;
     let mut baseline = "c".to_owned();
     let mut arguments = std::env::args().skip(1);
@@ -161,6 +178,7 @@ fn parse() -> Result<Options, String> {
         };
         match argument.as_str() {
             "--corpus" => corpus = Some(PathBuf::from(value()?)),
+            "--source" => source = Some(Source::parse(&value()?)?),
             "--root" => root = Some(PathBuf::from(value()?)),
             "--baseline" => baseline = value()?,
             "--help" | "-h" => {
@@ -172,6 +190,7 @@ fn parse() -> Result<Options, String> {
     }
     Ok(Options {
         corpus: corpus.ok_or_else(|| format!("--corpus is required\n\n{USAGE}"))?,
+        source,
         root: root.unwrap_or_else(default_root),
         baseline,
     })
@@ -186,7 +205,16 @@ fn default_root() -> PathBuf {
 }
 
 const USAGE: &str = "\
-usage: rosetta-verbosity --corpus <RosettaCodeData checkout> [--root <entl repo>] [--baseline <language>]
+usage: verbosity --corpus <checkout> [--source rosetta|exercism]
+                        [--root <entl repo>] [--baseline <language>]
+
+The source is detected from the layout when it can be. Rosetta Code is one
+checkout; Exercism is a directory of per-track checkouts.
 
   git clone https://github.com/acmeism/RosettaCodeData
-  cargo run --manifest-path tools/rosetta-verbosity/Cargo.toml -- --corpus ../RosettaCodeData";
+  cargo run --manifest-path tools/verbosity/Cargo.toml -- --corpus ../RosettaCodeData
+
+  mkdir exercism && cd exercism
+  for t in c cpp csharp go java javascript kotlin php python ruby rust scala \\
+           swift typescript zig bash; do git clone --depth 1 \\
+    https://github.com/exercism/$t $t; done";

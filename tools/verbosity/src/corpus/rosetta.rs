@@ -7,10 +7,10 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use entl_codebase::comment_syntax;
 
+use super::{Corpus, Samples};
 use crate::measure::{Measurement, measure};
 
 /// Maps an Entl language profile onto the corpus. The directory names and the
@@ -117,16 +117,6 @@ pub const MAPPINGS: &[Mapping] = &[
     },
 ];
 
-/// The median measurement of every task a language implements.
-pub type Samples = BTreeMap<String, Measurement>;
-
-pub struct Corpus {
-    pub revision: String,
-    pub tasks: usize,
-    pub samples: BTreeMap<&'static str, Samples>,
-    pub skipped: Vec<String>,
-}
-
 pub fn read(root: &Path) -> Result<Corpus, String> {
     let tasks_root = root.join("Task");
     if !tasks_root.is_dir() {
@@ -188,12 +178,9 @@ pub fn read(root: &Path) -> Result<Corpus, String> {
         }
     }
 
-    skipped.sort();
-    skipped.dedup();
-
     Ok(Corpus {
-        revision: revision(root),
-        tasks,
+        revision: super::revision(root),
+        units: tasks,
         samples,
         skipped,
     })
@@ -221,15 +208,4 @@ fn median_of(measurements: &[Measurement], field: fn(&Measurement) -> u32) -> u3
     } else {
         values[middle - 1].midpoint(values[middle])
     }
-}
-
-fn revision(root: &Path) -> String {
-    Command::new("git")
-        .args(["-C", &root.to_string_lossy(), "rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-        .filter(|revision| !revision.is_empty())
-        .unwrap_or_else(|| "unknown".to_owned())
 }

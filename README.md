@@ -110,7 +110,7 @@ crates/entl-semantics  span-anchored semantic observations, language neutral
 crates/entl-rust-mir   observes resolved Rust semantics by running as the compiler
 crates/entl-tree-sitter runtime-loaded Wasm parser packs
 parser-packs           pinned runtime grammar artifacts (third-party, vendored)
-tools/rosetta-verbosity regenerates the language verbosity table from a corpus
+tools/verbosity regenerates the language verbosity table from a corpus
 docs/design.md         boundaries and planned adapters
 ```
 
@@ -159,19 +159,41 @@ let java = language_profile("java").unwrap().verbosity().unwrap();
 let python = language_profile("python").unwrap().verbosity().unwrap();
 assert!(java.bytes > python.bytes);
 
-// Measured on the tasks both implement, not derived from the two indexes.
+// Measured on the exercises both implement, not derived from the two indexes.
 let measured = verbosity_ratio("java", "python").unwrap();
-assert!(measured.tasks > 1000);
+assert!(measured.tasks > 100);
 ```
 
-The numbers come from comparing Entl's languages on the
-[Rosetta Code](https://rosettacode.org) corpus, on the tasks each pair has in
-common. Because no two pairs share a task set, the ratios are not transitive,
-and the single index per language is a fit rather than a fact — each profile
-reports how far off that fit gets. See [docs/verbosity.md](docs/verbosity.md)
-for the method and its limits, and `tools/rosetta-verbosity` to regenerate it.
-Rosetta Code's own content is GFDL 1.2 and is not redistributed here; only the
-measurements are.
+The numbers come from comparing Entl's languages on a corpus of the same task
+solved in each of them, on the units each pair has in common. Because no two
+pairs share a unit set, the ratios are not transitive, and the single index per
+language is a fit rather than a fact — each profile reports how far off that fit
+gets.
+
+The shipped table is measured on [Exercism](docs/verbosity-exercism.md), where
+each exercise has one reference solution per track written against a shared
+specification and test suite. Two other corpora are published alongside it as
+cross-checks. [Rosetta Code](docs/verbosity-rosetta.md) is ten times larger and
+entirely uncontrolled. [mal](docs/verbosity-mal.md) is one mid-sized program — a
+Lisp interpreter of one to five thousand lines — implemented in all sixteen
+languages against one test suite.
+
+All three rank the languages alike (Spearman 0.79 to 0.87) and disagree on
+magnitude. The disagreement has a direction: the languages spread 2.5x apart on
+Exercism's small exercises and 4.9x apart on mal's mid-sized program, because a
+small exercise measures mostly the absence of ceremony while a real program has
+structure every language must pay for. Treat the shipped index as a property of
+a corpus, not of a language, and read `docs/verbosity-mal.md` before carrying it
+to anything program-sized.
+
+Verbosity here is also not a porting factor. It measures what a language needs
+when someone writes a solution from the specification. Translating an existing
+program is a different quantity and can run the other way: Bun's Zig-to-Rust
+rewrite expanded by about 1.37x in tokens, while independently written Rust and
+Zig solutions put Rust *below* Zig.
+
+Regenerate with `tools/verbosity`; neither corpus is redistributed here, only
+the measurements.
 
 ## Development
 

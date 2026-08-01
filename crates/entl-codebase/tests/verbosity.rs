@@ -1,6 +1,6 @@
 //! Checks the generated verbosity table against the profiles it describes.
 //!
-//! The numbers themselves come from `tools/rosetta-verbosity` and change when
+//! The numbers themselves come from `tools/verbosity` and change when
 //! the corpus does. What must hold regardless is that the table names only real
 //! languages, stays binary-searchable, and agrees with itself.
 
