@@ -125,33 +125,39 @@ attempt is not built on the same wrong premise:
   source_span         Same semantics, different spelling (errors hoists a
                       closure). Each returns its OWN crate's Error, so sharing
                       it needs a shared error type or a generic parameter.
-  node_text           DIFFERENT BEHAVIOR. effects indexes
-                      `&source[start..end]`, which PANICS on an out-of-range
-                      node; errors uses `source.get(range)?`, which returns
-                      None. Errors' version is strictly safer and effects
-                      should probably just adopt it — but that is a fix, not
-                      a dedup, and worth doing on its own.
-  simple_type_name    DIFFERENT BEHAVIOR, and reachable. effects splits on
-                      non-alphanumerics and takes the last identifier; errors
-                      does `rsplit("::")`. For `impl Trait for &mut Bar`
-                      effects yields `Bar` and errors yields `&mut Bar`. BOTH
-                      feed `{module}::{implementation}::{name}` callable-path
-                      construction, so unifying changes callable identity —
-                      effect-trace identity in one crate, the `callable` field
-                      and reach resolution in the other. Someone has to decide
-                      which spelling is correct; tests will not, because
-                      neither crate covers the divergent shapes.
+  node_text           FIXED 08-02. effects indexed `&source[start..end]`,
+                      which PANICS on an out-of-range node; errors uses
+                      `source.get(range)?`, which returns None. effects has
+                      adopted errors' version. The same slice panic was also
+                      present in effects' function-header read and got the
+                      same treatment; `infact-rust-behaviors` was already safe.
+  simple_type_name    SETTLED 08-02 on effects' spelling: `Bar`, not
+                      `&mut Bar`, for `impl Trait for &mut Bar`. A reference
+                      type is not usable as a `{module}::{implementation}::
+                      {name}` path segment, which is the only thing this feeds.
+                      errors' `rsplit("::")` version is gone. The note said
+                      tests would not decide this because neither crate covered
+                      the divergent shapes — errors now has one that does
+                      (`names_an_impl_self_type_without_its_decoration`,
+                      covering reference, qualified-path, and generic self
+                      types). effects was already correct and is unchanged.
+                      NOT unified into shared code: the two crates still each
+                      carry their own copy, deliberately, per the item below.
   collect_callables   NOT DUPLICATED. Effects-only. Errors has its own `walk`,
                       which interleaves containment, test detection, and
                       discard inspection with the traversal — different needs,
                       not a copy.
 
-[ ] Decide what is actually worth sharing
+[x] Decide what is actually worth sharing   -- DONE, and the answer is "nothing yet"
     - Sharing one identical 18-line function does not earn a crate.
-    - The real wins are smaller and separate: give effects errors' panic-free
-      `node_text`, and settle `simple_type_name` deliberately.
-    - Revisit the crate only if a THIRD consumer appears, or if the callable
-      path spelling gets settled and the helpers converge as a result.
+    - Both smaller wins are taken: effects has errors' panic-free `node_text`,
+      and `simple_type_name` is settled on the unqualified spelling. Neither
+      needed a shared crate — each was a one-function edit in one crate.
+    - The helpers did NOT converge as a result. `simple_type_name` now agrees
+      in BEHAVIOR but not in spelling: effects goes through its `identifiers`
+      helper, errors inlines the same split so it need not duplicate a second
+      function. If they are ever unified for real, that is the shape to merge.
+    - Revisit the crate only if a THIRD consumer appears.
 
 [ ] If it is done anyway: keep the blast radius at zero
     - effects has since gained `allocation.rs` and `path.rs`, both of which
