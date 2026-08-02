@@ -28,6 +28,10 @@ pub struct ParserPackManifest {
     pub files: FileSelectionManifest,
     #[serde(default)]
     pub tokenization: TokenizationManifest,
+    #[serde(default, rename = "error-handling")]
+    pub error_handling: ErrorHandlingManifest,
+    #[serde(default)]
+    pub tests: TestManifest,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -51,6 +55,60 @@ pub struct TokenizationManifest {
     /// Named syntax nodes that form useful whole-code comparison units.
     #[serde(default, rename = "unit-node-kinds")]
     pub unit_node_kinds: Vec<String>,
+}
+
+/// How a language spells failure.
+///
+/// These are facts about a language's standard library, not shapes in its
+/// grammar, which is why they are data here rather than Tree-sitter queries. A
+/// query can find `.unwrap_or_default()`; only this can say that the same
+/// spelling reads identically on a type that never carried a failure, so a
+/// consumer reporting it must say "possible" rather than "certain".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ErrorHandlingManifest {
+    /// Type names that, named in a return type, mean a failure can be reported.
+    #[serde(default, rename = "fallible-types")]
+    pub fallible_types: Vec<String>,
+    /// Type names that carry an absence rather than a cause.
+    #[serde(default, rename = "optional-types")]
+    pub optional_types: Vec<String>,
+    /// Callables whose failure case is an ANSWER rather than a failure.
+    ///
+    /// `binary_search` reports "not present" and `strip_prefix` reports "not
+    /// under this prefix". Both are ordinary results a caller is expected to
+    /// discard, and reporting them buries the findings that matter.
+    #[serde(default, rename = "non-failure-results")]
+    pub non_failure_results: Vec<String>,
+    /// The forms `non-failure-results` filters.
+    ///
+    /// A form only takes the exclusion when it identifies the discard BY the
+    /// failure type: `.ok()` and `Ok(..)` name the `Result` itself, whereas
+    /// `.unwrap_or(..)` says nothing about what it unwrapped.
+    #[serde(default, rename = "non-failure-results-forms")]
+    pub non_failure_results_forms: Vec<String>,
+    /// Discard forms whose receiver type the syntax cannot decide.
+    ///
+    /// Named by the consumer's own form vocabulary, because which spellings are
+    /// ambiguous is a fact about this language's standard library.
+    #[serde(default, rename = "ambiguous-forms")]
+    pub ambiguous_forms: Vec<String>,
+}
+
+/// How a language marks code that only runs under test.
+///
+/// The substrings are matched against whatever annotation text a pack's queries
+/// capture — attributes in Rust, decorators or naming conventions elsewhere.
+/// The query decides where to look; this decides what counts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TestManifest {
+    /// Substrings marking a single item as a test.
+    #[serde(default)]
+    pub markers: Vec<String>,
+    /// Substrings marking a whole module or file as test-only.
+    #[serde(default, rename = "module-markers")]
+    pub module_markers: Vec<String>,
 }
 
 impl ParserPackManifest {
