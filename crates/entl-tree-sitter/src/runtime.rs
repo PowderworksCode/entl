@@ -231,15 +231,14 @@ impl ParserRuntime {
         // matches nothing reports nothing, which reads as a clean repository.
         let mut queries = BTreeMap::new();
         for (name, source) in pack.queries() {
-            let query =
-                Query::new(&language, source).map_err(|error| Error::CompileQuery {
-                    pack: pack.manifest().id.clone(),
-                    query: name.clone(),
-                    message: format!(
-                        "at row {}, offset {}: {}",
-                        error.row, error.offset, error.message
-                    ),
-                })?;
+            let query = Query::new(&language, source).map_err(|error| Error::CompileQuery {
+                pack: pack.manifest().id.clone(),
+                query: name.clone(),
+                message: format!(
+                    "at row {}, offset {}: {}",
+                    error.row, error.offset, error.message
+                ),
+            })?;
             queries.insert(name.clone(), query);
         }
         Ok(LoadedParser {
