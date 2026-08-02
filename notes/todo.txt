@@ -215,6 +215,45 @@ these are what actually stands in the way of `RUSTC=entl-rust-mir cargo build`.
     anyway. Whatever one-command path gets built must clear RUSTC_WRAPPER for
     that invocation — worth designing in rather than rediscovering.
 
+## The 77% generic gap — MEASURED, and one route is ruled out
+
+Measured 08-02 over five real crates built with the driver as RUSTC:
+
+    functions skipped for want of an instance   2,325 of 3,014   77.1%
+    items whose body was read at all              763 of 3,384   22.5%
+    per crate: serde_core 85.8%, quote 23.3%, proc_macro2 13.7%
+
+The spread is the result. A concrete crate loses ~14%; a generics-heavy one
+loses ~86%. Coverage is not a number, it is a property of the code observed.
+
+WHAT IS ACTUALLY LOST. Calls INTO a generic are recorded, with the
+instantiation — `instantiates -> generic_caller::<u8>`. Calls INSIDE it are
+not. The graph is TRUNCATED AT EVERY GENERIC BOUNDARY: edges arrive at a
+generic function and stop. For effect propagation that is the worst shape,
+because reach ends silently at exactly the functions that forward work.
+
+[ ] RULED OUT: reading the polymorphic body via `CrateItem::body()`
+    It works, and on a fixture it is exactly right — 3 edges become 10, gaps go
+    to zero, and the seven new ones label cleanly as `unmonomorphized`.
+    It does NOT survive real code. proc_macro2 and serde_core both abort in
+    `normalize_erasing_regions.rs:201`, and coverage went DOWN (5 crates to 3)
+    because the driver now dies earlier than it used to.
+    The abort is NOT `Instance::resolve` — that is guarded now. It is reading
+    the callee operand's own type: `Ty::kind()` normalizes eagerly and cannot
+    handle the unresolved projections a polymorphic body carries. That is a
+    rustc_public limitation, not something a caller can guard around.
+    The experiment is kept at scratchpad/experiment-polymorphic-body.rs.
+    Do not re-derive this; it costs a full driver build and two crate builds.
+
+[ ] NEXT ROUTE TO TRY: walk monomorphized instances rather than local items
+    `all_local_items()` yields the generic item, which has no instance. The
+    compiler also produces the INSTANTIATIONS it actually generated, and those
+    have bodies, resolved destinations, and no normalization problem — the
+    schema needs nothing new for them. It cannot see a public generic API the
+    crate never calls itself, so it will not reach 100%, but it covers the
+    generics a scanned repository actually uses, which is the case that
+    matters. Measure the coverage it reaches before building on it.
+
 [ ] It panics reading syn's MIR
     rustc_public/src/mir/body.rs:1057 during `visit_body`, on
     syn 3.0.3. Five crates observed cleanly first (proc_macro2, quote,
