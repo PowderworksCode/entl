@@ -1,5 +1,40 @@
 entl — todo
 
+## entl-rust-mir now resolves instances — COUPLED TO INFACT, DO NOT MOVE ALONE
+
+Uncommitted on 08-02, in this tree: `crates/entl-rust-mir/src/main.rs` resolves
+each call's instance (`Instance::resolve(def, &args)`) instead of naming the
+def, so a trait method carries the type it ran on. `<String as Clone>::clone`
+and `<Arc<T> as Clone>::clone` stop being the same destination, which is the
+whole reason a consumer asks a compiler instead of the syntax.
+
+THIS BREAKS INFACT ON ITS OWN. Resolution rewrites `std::fs::read` to
+`std::fs::read::<&str>`, and infact's catalog lookup is an exact match, so
+every effect silently disappears while the run still reports resolved coverage.
+The compensating change is in infact's `observed.rs`. Measured: 5 of 6 infact
+`observed` tests fail with empty results if this lands alone.
+
+  Full record, including what was measured and what is left:
+    infact/notes/todo.txt — "Resolved-destination allocation"
+
+Also uncommitted here: `tests/observe.rs` (two assertions now expect the
+monomorphized spelling) and `tests/fixtures/receivers.rs` (new).
+
+Needs nightly-2026-07-18 with rustc-dev, rust-src, llvm-tools — pinned in
+`crates/entl-rust-mir/rust-toolchain.toml`.
+
+[ ] Observe types, or decide resolution is enough
+    `coverage.types` is still false and `types` is still empty. Resolution
+    answered the receiver-type question WITHOUT populating `TypeAt`, so the
+    original reason for wanting types is largely met. Before building type
+    observation, check whether anything still needs it.
+
+[ ] Generic items are skipped entirely
+    `Instance::try_from(item)` fails for a non-monomorphic item, so the driver
+    records a gap and reads no calls from it. Calls inside generic functions
+    are absent from the graph. This bounds observed coverage more than anything
+    resolution changed, and it predates this work.
+
 ## Parser-pack queries for the discarded-error check
 
 Infact's `infact-rust-errors` recognizes discarded-error forms (`let _ =`,
@@ -126,3 +161,38 @@ attempt is not built on the same wrong premise:
       edits at all.
     - Much of that code was UNTRACKED when this ran, which means git offers no
       way back from a bad refactor. Get it committed first.
+
+## entl-rust-mir is outside every automated check
+
+The crate is in the workspace `exclude` list and pins its own nightly, so
+`cargo clippy --workspace` and `cargo test --workspace` NEVER SEE IT. It is
+also excluded from the lint ratchet: the `[workspace.lints]` deny of
+`unwrap_used` / `let_underscore_must_use` / `unused_must_use` does not apply,
+because those are declared at the workspace level and this crate is not a
+member.
+
+That matters because this crate had the WORST error handling in the fleet. The
+original audit found three of its Tier-1 papered-over failures here — `write()`
+swallowing four separate failures, `Err(_) => continue` dropping a MIR
+instance, and `convert_span` discarding call edges. All three are fixed, but
+nothing automated would catch a regression.
+
+[ ] Give it its own CI step
+    cargo clippy --manifest-path crates/entl-rust-mir/Cargo.toml --all-targets
+    cargo test   --manifest-path crates/entl-rust-mir/Cargo.toml
+    Runs on the pinned nightly, so it wants its own job rather than being
+    folded into the workspace one.
+
+[ ] Decide whether it should carry the lint denials
+    A non-member crate needs them written into its own `[lints]` table; it
+    cannot inherit `[workspace.lints]`. Straitjacket's `error-discard` rule
+    DOES cover it (the scan is path-based, not cargo-based), so the discard
+    forms are policed. The panic/must-use lints are not.
+
+## Transfer
+
+The cross-repo inventory, toolchains, and per-machine gotchas live in
+  infact/notes/todo.txt — "Transfer notes — READ BEFORE MOVING MACHINES"
+Read that first. Short version: all three repos must sit as SIBLINGS under one
+parent, because straitjacket -> infact -> entl are path dependencies and a lone
+clone of any one will not build.
