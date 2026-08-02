@@ -154,3 +154,30 @@ fn observations_carry_the_compiler_that_produced_them() {
     );
     assert_eq!(observations.provenance.unit, "fixture");
 }
+
+/// A build tool asks the compiler what it is before asking it to compile.
+///
+/// `rustc -vV` and `rustc --print` compile nothing, and `run!` reports that as
+/// `CompilerError::Skipped`. Treating every error as failure made those probes
+/// exit non-zero, so `RUSTC=entl-rust-mir cargo build` died before reaching the
+/// first crate — which is why there was no way to produce observations from an
+/// ordinary build.
+#[test]
+fn a_probe_that_compiles_nothing_still_succeeds() {
+    for probe in [vec!["-vV"], vec!["--print", "sysroot"]] {
+        let output = Command::new(env!("CARGO_BIN_EXE_entl-rust-mir"))
+            .args(&probe)
+            .output()
+            .expect("running the driver");
+        assert!(
+            output.status.success(),
+            "{probe:?} exited {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !output.stdout.is_empty(),
+            "{probe:?} answered nothing on stdout"
+        );
+    }
+}
