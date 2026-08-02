@@ -25,7 +25,7 @@ use entl_semantics::{
     Span, Visibility,
 };
 use rustc_public::mir::{MirVisitor, Terminator, TerminatorKind};
-use rustc_public::ty::{RigidTy, TyKind};
+use rustc_public::ty::{GenericArgKind, RigidTy, TyKind};
 use rustc_public::{CrateDef, CrateItem};
 
 /// Where to write the observations, taken from the environment because the
@@ -139,10 +139,10 @@ impl MirVisitor for CallCollector {
         if let TerminatorKind::Call { func, .. } = &terminator.kind {
             let (to, dispatch) = match func.ty(&[]).map(|ty| ty.kind()) {
                 // a call to a known function: the type itself names the callee
-                Ok(TyKind::RigidTy(RigidTy::FnDef(def, arguments))) => (
-                    vec![EntityId::new(destination(def, &arguments))],
-                    Dispatch::Static,
-                ),
+                Ok(TyKind::RigidTy(RigidTy::FnDef(def, arguments))) => {
+                    let (name, dispatch) = destination(def, &arguments);
+                    (vec![EntityId::new(name)], dispatch)
+                }
                 // a function pointer or closure the compiler did not settle
                 _ => (Vec::new(), Dispatch::Unknown),
             };
@@ -174,10 +174,33 @@ impl MirVisitor for CallCollector {
 ///
 /// Resolution fails for a call the compiler itself could not settle, and the
 /// unresolved name is still better than no edge at all.
-fn destination(def: rustc_public::ty::FnDef, arguments: &rustc_public::ty::GenericArgs) -> String {
+fn destination(
+    def: rustc_public::ty::FnDef,
+    arguments: &rustc_public::ty::GenericArgs,
+) -> (String, Dispatch) {
+    // Resolution requires the arguments to be settled. Handing it a type
+    // parameter does not return an error — it aborts the compiler inside
+    // `normalize_erasing_regions` — so the check has to happen here, before
+    // asking. That is also exactly the distinction worth recording: a
+    // destination named with `T` still in it is not the one that will run.
+    if !is_monomorphic(arguments) {
+        return (def.0.name(), Dispatch::Unmonomorphized);
+    }
     rustc_public::mir::mono::Instance::resolve(def, arguments)
-        .map(|instance| instance.name())
-        .unwrap_or_else(|_| def.0.name())
+        .map(|instance| (instance.name(), Dispatch::Static))
+        .unwrap_or_else(|_| (def.0.name(), Dispatch::Unmonomorphized))
+}
+
+/// Whether every generic argument is settled, so resolution is safe to ask.
+fn is_monomorphic(arguments: &rustc_public::ty::GenericArgs) -> bool {
+    arguments.0.iter().all(|argument| match argument {
+        GenericArgKind::Type(ty) => is_settled(ty),
+        GenericArgKind::Const(_) | GenericArgKind::Lifetime(_) => true,
+    })
+}
+
+fn is_settled(ty: &rustc_public::ty::Ty) -> bool {
+    !matches!(ty.kind(), TyKind::Param(_))
 }
 
 fn entity_id(item: &CrateItem) -> EntityId {
