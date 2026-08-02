@@ -366,6 +366,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "entl-ts-observe"
+version = "0.0.0"
+dependencies = [
+ "entl-semantics",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

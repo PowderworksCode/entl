@@ -5,6 +5,7 @@ members = [
     "crates/entl-github",
     "crates/entl-semantics",
     "crates/entl-tree-sitter",
+    "crates/entl-ts-observe",
 ]
 
 exclude = ["crates/entl-rust-mir"]

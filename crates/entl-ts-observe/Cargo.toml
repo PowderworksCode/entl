@@ -1,0 +1,19 @@
+[package]
+name = "entl-ts-observe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Observes resolved TypeScript semantics by running the compiler's checker."
+
+[dependencies]
+entl-semantics = { path = "../entl-semantics" }
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
