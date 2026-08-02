@@ -33,3 +33,21 @@ unit-node-kinds = [
     "impl_item",
     "trait_item",
 ]
+
+[error-handling]
+fallible-types = ["Result"]
+optional-types = ["Option"]
+# `Err` here is an answer, not a failure: "not present", "not under this prefix".
+non-failure-results = [
+    "binary_search",
+    "binary_search_by",
+    "binary_search_by_key",
+    "strip_prefix",
+]
+# `.unwrap_or_default()` reads identically on `Option`, which never failed.
+non-failure-results-forms = ["ok-discard", "ok-binding"]
+ambiguous-forms = ["unwrap-or", "panic"]
+
+[tests]
+markers = ["test"]
+module-markers = ["cfg(test)"]

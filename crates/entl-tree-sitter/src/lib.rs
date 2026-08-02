@@ -15,7 +15,8 @@ pub use catalog::{CatalogDiscovery, ParserCatalog, ParserPack};
 pub use dialect::{Rewritten, neutralize};
 pub use error::{Error, Result};
 pub use manifest::{
-    FileSelectionManifest, MANIFEST_FILENAME, ParserPackManifest, TokenizationManifest,
+    ErrorHandlingManifest, FileSelectionManifest, MANIFEST_FILENAME, ParserPackManifest,
+    TestManifest, TokenizationManifest,
 };
 pub use repository::{ParseDiagnostic, ParsedRepository, parse_repository};
 pub use runtime::{
