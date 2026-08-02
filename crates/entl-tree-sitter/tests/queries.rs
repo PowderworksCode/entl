@@ -40,7 +40,11 @@ fn pack_with_query(name: &str, query: &str) -> (tempfile::TempDir, PathBuf) {
 fn loads_the_queries_a_pack_ships() {
     let pack = ParserPack::load(rust_pack_path()).unwrap();
     // vendored from the upstream grammar, alongside the wasm
-    assert!(pack.queries().contains_key("highlights"), "{:?}", pack.queries().keys());
+    assert!(
+        pack.queries().contains_key("highlights"),
+        "{:?}",
+        pack.queries().keys()
+    );
     assert!(!pack.queries()["highlights"].is_empty());
     assert_eq!(pack.queries_sha256().len(), 64);
 }
@@ -196,5 +200,8 @@ fn a_pack_without_queries_has_a_stable_digest() {
     }
     let pack = ParserPack::load(&root).unwrap();
     assert_eq!(pack.queries_sha256().len(), 64);
-    assert_ne!(pack.queries_sha256(), ParserPack::load(rust_pack_path()).unwrap().queries_sha256());
+    assert_ne!(
+        pack.queries_sha256(),
+        ParserPack::load(rust_pack_path()).unwrap().queries_sha256()
+    );
 }
