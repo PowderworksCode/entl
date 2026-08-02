@@ -121,9 +121,10 @@ absent from the match — `QueryMatch::has` is how a consumer reads that:
  (#eq? @variant "Err"))
 ```
 
-`Err(_)` matches without `@bind`; `Err(e)` matches with it. `ParserPack::queries_sha256`
-digests the query set, because a fact derived through a query depends on that
-query's text as much as on the grammar.
+`Err(_)` matches without `@bind`; `Err(e)` matches with it. `ParseProvenance` carries a
+`queries_sha256` alongside the grammar digest, because a fact derived through a
+query depends on that query's text as much as on the grammar, and two runs whose
+queries differ would otherwise be indistinguishable.
 
 ## Workspace
 

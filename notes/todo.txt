@@ -44,14 +44,16 @@ results, so nobody has to re-derive them:
       and so cannot live on the shared `ParserPack`.
     - `ParserPack::queries_sha256` digests the query set.
 
-[ ] Wire `queries_sha256` into `ParseProvenance` / `InputEvidence`
-    - A fact derived through a query depends on that query's text as much as on
-      the grammar, and provenance currently records only `grammar_sha256`. Two
-      runs with different discard queries would produce indistinguishable
-      provenance.
-    - Deliberately NOT done with the loader: it ripples into infact's
-      `InputEvidence` construction across several crates, and infact was busy.
-      The digest is already exposed, so this is a plumbing change.
+[x] Wire `queries_sha256` into `ParseProvenance` / `InputEvidence`   -- DONE
+    - `ParseProvenance.queries_sha256` is populated at parse; every one of the
+      six `InputEvidence` construction sites across Infact carries it through.
+    - The compiler-observed path (`infact-rust-effects::observed`) writes empty:
+      no parser pack and no queries were involved, which is a real distinction
+      rather than a missing value.
+    - `#[serde(default)]` on the new field, so evidence serialized before it
+      existed still reads. Covered by a test in `infact-core`.
+    - The property that matters is tested in entl: two packs with the SAME
+      grammar and DIFFERENT queries must not carry identical provenance.
 
 [ ] Express discard forms as `queries/discards.scm`
     - One capture per form, named after the `DiscardForm` variant:
@@ -75,18 +77,52 @@ STAYS RUST regardless of any of the above (~400 of the 744 lines):
   SHRINKS this crate to roughly a query-driven front end plus the graph; it does
   not remove it.
 
-## Shared Rust call graph (deduplicate)
+## Shared Rust call graph — MEASURED, and the premise was wrong
 
-`infact-rust-effects` and `infact-rust-errors` each build their own callable +
-call-edge collection over the same Rust trees. Effects resolves into external
-std catalogs; errors only needs repository-local caller->callee edges, so the
-resolvers differ — but `collect_callables`, `repository_module`, `source_span`,
-`node_text`, and `simple_type_name` are duplicated outright.
+This said `infact-rust-effects` and `infact-rust-errors` duplicate
+`collect_callables`, `repository_module`, `source_span`, `node_text`, and
+`simple_type_name` "outright". A scheduled run on 08-02 diffed them. They do
+not. Only ONE of the five is identical, and two differ in BEHAVIOR, so this is
+a behavior-unification task and not a mechanical move. Recorded so the next
+attempt is not built on the same wrong premise:
 
-[ ] Extract `infact-rust-callgraph`
-    - Callable/SyntaxCall/ResolvedCall + collection + span/module helpers.
-    - Both crates depend on it; each keeps its own resolution policy.
-    - Infact's own `exact-clone` rule will find this eventually. Better to move
-      first than to suppress it.
-    - Do this BEFORE the query work if both are planned: the query front end
-      should sit on the shared graph, not on a second private copy of it.
+  repository_module   IDENTICAL. The only one.
+  source_span         Same semantics, different spelling (errors hoists a
+                      closure). Each returns its OWN crate's Error, so sharing
+                      it needs a shared error type or a generic parameter.
+  node_text           DIFFERENT BEHAVIOR. effects indexes
+                      `&source[start..end]`, which PANICS on an out-of-range
+                      node; errors uses `source.get(range)?`, which returns
+                      None. Errors' version is strictly safer and effects
+                      should probably just adopt it — but that is a fix, not
+                      a dedup, and worth doing on its own.
+  simple_type_name    DIFFERENT BEHAVIOR, and reachable. effects splits on
+                      non-alphanumerics and takes the last identifier; errors
+                      does `rsplit("::")`. For `impl Trait for &mut Bar`
+                      effects yields `Bar` and errors yields `&mut Bar`. BOTH
+                      feed `{module}::{implementation}::{name}` callable-path
+                      construction, so unifying changes callable identity —
+                      effect-trace identity in one crate, the `callable` field
+                      and reach resolution in the other. Someone has to decide
+                      which spelling is correct; tests will not, because
+                      neither crate covers the divergent shapes.
+  collect_callables   NOT DUPLICATED. Effects-only. Errors has its own `walk`,
+                      which interleaves containment, test detection, and
+                      discard inspection with the traversal — different needs,
+                      not a copy.
+
+[ ] Decide what is actually worth sharing
+    - Sharing one identical 18-line function does not earn a crate.
+    - The real wins are smaller and separate: give effects errors' panic-free
+      `node_text`, and settle `simple_type_name` deliberately.
+    - Revisit the crate only if a THIRD consumer appears, or if the callable
+      path spelling gets settled and the helpers converge as a result.
+
+[ ] If it is done anyway: keep the blast radius at zero
+    - effects has since gained `allocation.rs` and `path.rs`, both of which
+      import `node_text`, `source_span`, `identifiers`, and `SyntaxCall` from
+      the crate root. Re-export the moved names from effects' `lib.rs`
+      (`pub(crate) use infact_rust_callgraph::{..}`) so those modules need no
+      edits at all.
+    - Much of that code was UNTRACKED when this ran, which means git offers no
+      way back from a bad refactor. Get it committed first.

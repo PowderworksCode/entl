@@ -15,6 +15,12 @@ pub struct ParseProvenance {
     pub parser_id: String,
     pub parser_version: String,
     pub grammar_sha256: String,
+    /// A digest over the queries the pack shipped.
+    ///
+    /// A fact derived through a query depends on that query's text as much as
+    /// on the grammar, so recording only `grammar_sha256` cannot say which
+    /// rules produced it. A pack with no queries still has a stable digest.
+    pub queries_sha256: String,
     pub source_sha256: String,
 }
 
@@ -172,6 +178,7 @@ impl LoadedParser {
                 parser_id: self.pack.manifest().id.clone(),
                 parser_version: self.pack.manifest().version.clone(),
                 grammar_sha256: self.pack.manifest().sha256.clone(),
+                queries_sha256: self.pack.queries_sha256().to_owned(),
                 source_sha256: hex_digest(&source),
             },
             pack: self.pack.clone(),

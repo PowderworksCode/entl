@@ -56,19 +56,56 @@ fn callees(observations: &SemanticObservations, from: &str) -> Vec<String> {
 }
 
 /// The point of the whole exercise: how a call is written stops mattering.
+///
+/// The destination is a monomorphized instance, so a generic function carries
+/// the arguments it was called with. A consumer matching against a catalog of
+/// declared paths has to normalize them away; what matters here is that every
+/// spelling arrives at one name.
 #[test]
 fn one_call_resolves_the_same_however_it_is_written() {
     let observations = observe("imports.rs");
     for spelling in ["qualified", "via_module"] {
         assert_eq!(
             callees(&observations, spelling),
-            ["std::fs::read"],
+            ["std::fs::read::<&str>"],
             "`{spelling}` should resolve to the same definition as every other spelling"
         );
     }
     assert_eq!(
         callees(&observations, "via_item"),
-        ["std::fs::read_to_string"]
+        ["std::fs::read_to_string::<&str>"]
+    );
+}
+
+/// A trait method is not one destination, and resolution is what says so.
+///
+/// Cloning an `Arc` bumps a count and cloning a `String` copies a buffer. Both
+/// are written `.clone()` and both are `std::clone::Clone::clone` until the
+/// instance is resolved, so a consumer asking what a call costs gets nothing
+/// from the unresolved name.
+#[test]
+fn a_trait_method_carries_the_type_it_was_called_on() {
+    let observations = observe("receivers.rs");
+    for (function, expected) in [
+        ("clone_an_arc", "std::sync::Arc<std::string::String>"),
+        ("clone_a_string", "std::string::String"),
+        ("clone_a_vec", "std::vec::Vec<u8>"),
+    ] {
+        let resolved = callees(&observations, function);
+        assert_eq!(resolved.len(), 1, "{function}: {resolved:?}");
+        assert!(
+            resolved[0].contains(expected),
+            "{function} should name {expected}, got {}",
+            resolved[0]
+        );
+    }
+    // the container being built is part of what `collect` does
+    assert!(
+        callees(&observations, "collected")
+            .iter()
+            .any(|callee| callee.contains("collect::<std::vec::Vec<u8>>")),
+        "{:?}",
+        callees(&observations, "collected")
     );
 }
 

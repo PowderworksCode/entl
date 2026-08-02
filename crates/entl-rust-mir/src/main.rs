@@ -134,9 +134,10 @@ impl MirVisitor for CallCollector {
         if let TerminatorKind::Call { func, .. } = &terminator.kind {
             let (to, dispatch) = match func.ty(&[]).map(|ty| ty.kind()) {
                 // a call to a known function: the type itself names the callee
-                Ok(TyKind::RigidTy(RigidTy::FnDef(def, _))) => {
-                    (vec![EntityId::new(def.0.name())], Dispatch::Static)
-                }
+                Ok(TyKind::RigidTy(RigidTy::FnDef(def, arguments))) => (
+                    vec![EntityId::new(destination(def, &arguments))],
+                    Dispatch::Static,
+                ),
                 // a function pointer or closure the compiler did not settle
                 _ => (Vec::new(), Dispatch::Unknown),
             };
@@ -155,6 +156,23 @@ impl MirVisitor for CallCollector {
         }
         self.super_terminator(terminator, location);
     }
+}
+
+/// The definition a call actually enters, not the one it was written against.
+///
+/// A trait method names the trait until it is monomorphized: cloning an `Arc`
+/// and cloning a `String` are both `std::clone::Clone::clone`, and the
+/// difference between them — one bumps a count, the other copies a buffer —
+/// lives in the generic arguments. Resolving the instance puts the receiver
+/// back into the name, which is the whole reason a consumer asks a compiler
+/// rather than the syntax.
+///
+/// Resolution fails for a call the compiler itself could not settle, and the
+/// unresolved name is still better than no edge at all.
+fn destination(def: rustc_public::ty::FnDef, arguments: &rustc_public::ty::GenericArgs) -> String {
+    rustc_public::mir::mono::Instance::resolve(def, arguments)
+        .map(|instance| instance.name())
+        .unwrap_or_else(|_| def.0.name())
 }
 
 fn entity_id(item: &CrateItem) -> EntityId {

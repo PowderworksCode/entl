@@ -147,3 +147,54 @@ fn a_predicate_filters_on_matched_text() {
     assert_eq!(found.len(), 1, "only `.ok()`: {found:?}");
     assert!(found[0].capture("site").is_some());
 }
+
+/// Provenance has to separate two runs whose queries differ.
+///
+/// Recording only the grammar digest cannot: the grammar is identical in both
+/// of these, and the queries are what produced the difference in what matched.
+#[test]
+fn provenance_records_the_query_digest() {
+    let (_first_dir, first_root) = pack_with_query("discards", "(identifier) @a");
+    let (_second_dir, second_root) = pack_with_query("discards", "(field_identifier) @b");
+    let (_same_dir, same_root) = pack_with_query("discards", "(identifier) @a");
+
+    let provenance = |root: &PathBuf| {
+        let pack = Arc::new(ParserPack::load(root).unwrap());
+        let parser = ParserRuntime::new().unwrap().load(pack).unwrap();
+        parse(&parser, "fn a() {}").provenance
+    };
+    let first = provenance(&first_root);
+    let second = provenance(&second_root);
+    let same = provenance(&same_root);
+
+    assert_eq!(first.queries_sha256.len(), 64);
+    assert_eq!(
+        first.grammar_sha256, second.grammar_sha256,
+        "same grammar, so only the queries can distinguish them"
+    );
+    assert_ne!(
+        first.queries_sha256, second.queries_sha256,
+        "different queries must not carry identical provenance"
+    );
+    assert_eq!(
+        first.queries_sha256, same.queries_sha256,
+        "the digest has to be stable for identical queries"
+    );
+}
+
+/// A pack shipping no queries still has a stable digest, not an empty one.
+#[test]
+fn a_pack_without_queries_has_a_stable_digest() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("rust");
+    std::fs::create_dir_all(&root).unwrap();
+    for entry in std::fs::read_dir(rust_pack_path()).unwrap() {
+        let entry = entry.unwrap();
+        if entry.path().is_file() {
+            std::fs::copy(entry.path(), root.join(entry.file_name())).unwrap();
+        }
+    }
+    let pack = ParserPack::load(&root).unwrap();
+    assert_eq!(pack.queries_sha256().len(), 64);
+    assert_ne!(pack.queries_sha256(), ParserPack::load(rust_pack_path()).unwrap().queries_sha256());
+}
