@@ -274,3 +274,69 @@ The cross-repo inventory, toolchains, and per-machine gotchas live in
 Read that first. Short version: all three repos must sit as SIBLINGS under one
 parent, because straitjacket -> infact -> entl are path dependencies and a lone
 clone of any one will not build.
+
+## Parser setup was being repeated per file — FIXED, and it was fleet-wide
+
+`LoadedParser::parse` built a fresh `Parser`, a fresh `WasmStore` and called
+`set_language` on every call. That is setup, it does not depend on the file, and
+it dominated every consumer that parses more than one thing.
+
+Measured with the same loaded parser, before and after:
+
+    19-byte source      123 ms  ->  0.087 ms
+    40,564-byte source  210 ms  ->  85 ms
+
+Nearly all of the smaller number was setup being repeated, which is why the two
+were so close together despite a 2000x difference in input. What remains is
+parsing, and it is now proportional to the file.
+
+`load` already built a `WasmStore` to read the grammar out of and then dropped
+it. It now keeps a parser configured with that store and language, behind a
+`Mutex` because `Parser::parse` needs `&mut` while consumers hold a
+`LoadedParser` by reference and `ParsedRepository` holds several in a map.
+
+WHY IT MATTERED EVERYWHERE: `parse_repository` loads one parser per language and
+reuses it — that part was always right — but it calls `parse` once per file, so
+`infact-duplication`, `infact-rust-effects`, `infact-errors` and
+`infact-rust-behaviors` all paid roughly 123ms x file count. About two minutes
+of dead time on a thousand-file repository, in every analyzer, since the wasm
+parser landed.
+
+Found by profiling a TypeScript scan that would not finish in eleven minutes;
+with this it completes in seventy-eight seconds. Nobody would have found it by
+reading the code — the call looked exactly like the one that was already
+correct.
+
+If a consumer ever wants PARALLEL parsing it should hold one `LoadedParser` per
+thread rather than contend on this lock. Nothing in the tree parses concurrently
+today, so the lock costs nothing now.
+
+## A TypeScript provider now exists
+
+`providers/typescript/observe.mjs` runs the TypeScript checker and emits
+`SemanticObservations`; `entl-ts-observe` drives it. Measured on a 1,047-file
+monorepo: 18 seconds, 1.9GB, 8,547 definitions, 88,013 calls, 47,012 types, 609
+gaps, every span repository-relative.
+
+`entl-semantics` needed NO change. The schema was written with TypeScript in
+mind — `EntityId` documented "a TypeScript file and qualified name", `CallEdge`
+already held several destinations, `TypeRef` already declined to reconcile
+structural types with traits.
+
+Unlike `entl-rust-mir` this needs no pinned toolchain and no compiler-private
+crates, so it is an ordinary workspace member covered by `cargo test` and
+`cargo clippy` rather than sitting outside every automated check.
+
+Entities are minted from DECLARATION SITES, not `getFullyQualifiedName`. That
+name was measured to embed absolute filesystem paths for anything a module
+exports, to spell the same symbol differently depending on whether it is
+exported, and to call every anonymous object type `__type`. None of that
+survives being compared across machines.
+
+[ ] The receiver-type join is the point of this and infact only uses it
+    per-file. Consuming `types` at a span needs the consumer side to carry
+    spans, which infact-ts-normalize now does.
+[ ] Monorepo tsconfigs are unverified. pi has eight with project references and
+    `paths` aliases; the root config was used and worked, but whether every
+    package is observed rather than whatever the root happens to include has not
+    been checked.
