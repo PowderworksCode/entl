@@ -13,10 +13,9 @@ comparison-domain = "zig"
 extensions = ["zig"]
 
 [tokenization]
-ignored-node-kinds = ["line_comment", "doc_comment", "container_doc_comment"]
+ignored-node-kinds = ["comment"]
 identifier-node-kinds = [
     "identifier",
-    "field_identifier",
     "builtin_identifier",
 ]
 literal-node-kinds = [

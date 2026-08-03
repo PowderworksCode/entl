@@ -62,6 +62,14 @@ enum Rule {
         after: Option<&'static str>,
         /// Text that must immediately follow it, ignoring spaces.
         before: Option<&'static str>,
+        /// Whether the keyword must be the first thing on its line.
+        ///
+        /// A soft keyword is an ordinary identifier everywhere else, so
+        /// position is the only thing separating the two. `lazy import x` is
+        /// PEP 810; `from .lazy import x` names a module called `lazy`, and
+        /// blanking that one turns a file that parses into one that does not.
+        /// CPython's own `test_syntax.py` holds both.
+        leading: bool,
     },
     /// Collapse `if (condition) A else B` in type position to `B`.
     TypeConditional,
@@ -81,6 +89,7 @@ const fn blank(keyword: &'static str, reason: &'static str) -> Rewrite {
             keyword,
             after: None,
             before: None,
+            leading: false,
         },
         reason,
         fidelity: Fidelity::Preserved,
@@ -99,6 +108,27 @@ const fn blank_between(
             keyword,
             after,
             before,
+            leading: false,
+        },
+        reason,
+        fidelity: Fidelity::Preserved,
+    }
+}
+
+/// A keyword blanked only where it opens a line and `before` follows it.
+///
+/// For a soft keyword, which is an ordinary identifier in every other position.
+const fn blank_leading(
+    keyword: &'static str,
+    before: &'static str,
+    reason: &'static str,
+) -> Rewrite {
+    Rewrite {
+        rule: Rule::Blank {
+            keyword,
+            after: None,
+            before: Some(before),
+            leading: true,
         },
         reason,
         fidelity: Fidelity::Preserved,
@@ -160,9 +190,38 @@ const ZIG_REWRITES: &[Rewrite] = &[Rewrite {
     fidelity: Fidelity::Narrowed,
 }];
 
+/// Syntax `tree-sitter-python` 0.25.0 does not accept.
+///
+/// PEP 810's lazy imports, in both spellings. Measured on CPython `main` at
+/// 2ba0b2c9d1d0: 55 of the 61 files the grammar rejects contain one, and no
+/// other single construct accounts for more than one file.
+///
+/// The cost is smaller here than the Zig entry's, and worth stating plainly:
+/// Python statements are delimited by newlines, so an unreadable one takes
+/// itself and not the file. Across CPython `main` the grammar loses 0.055% of
+/// its bytes. What it loses is nonetheless an `import`, and a consumer reading
+/// dependencies from a tree cannot tell a module that imports nothing from one
+/// whose imports it could not read.
+///
+/// `lazy` is a SOFT keyword — an ordinary identifier in every other position —
+/// which is why both entries are anchored to the start of a line.
+const PYTHON_REWRITES: &[Rewrite] = &[
+    blank_leading(
+        "lazy",
+        "import",
+        "PEP 810 lazy imports; the grammar predates them",
+    ),
+    blank_leading(
+        "lazy",
+        "from",
+        "PEP 810 lazy imports; the grammar predates them",
+    ),
+];
+
 /// The rewrites that apply to a language, if any.
 fn table(language: &str) -> &'static [Rewrite] {
     match language {
+        "python" => PYTHON_REWRITES,
         "rust" => RUST_REWRITES,
         "zig" => ZIG_REWRITES,
         _ => &[],
@@ -200,7 +259,8 @@ pub fn neutralize(language: impl AsRef<str>, source: &[u8]) -> Option<Rewritten>
                 keyword,
                 after,
                 before,
-            } => blank_all(&mut output, keyword, after, before),
+                leading,
+            } => blank_all(&mut output, keyword, after, before, leading),
             Rule::TypeConditional => collapse_type_conditionals(&mut output),
         };
         if applied {
@@ -224,13 +284,22 @@ pub fn neutralize(language: impl AsRef<str>, source: &[u8]) -> Option<Rewritten>
 }
 
 /// Replace every qualifying occurrence with spaces, in place.
-fn blank_all(text: &mut String, keyword: &str, after: Option<&str>, before: Option<&str>) -> bool {
+fn blank_all(
+    text: &mut String,
+    keyword: &str,
+    after: Option<&str>,
+    before: Option<&str>,
+    leading: bool,
+) -> bool {
     let mut blanked = false;
     let mut from = 0;
     while let Some(offset) = text[from..].find(keyword) {
         let start = from + offset;
         let end = start + keyword.len();
         from = end;
+        if leading && !opens_a_line(text, start) {
+            continue;
+        }
         if !is_word_boundary(text, start, end) || !context_matches(text, start, end, after, before)
         {
             continue;
@@ -239,6 +308,16 @@ fn blank_all(text: &mut String, keyword: &str, after: Option<&str>, before: Opti
         blanked = true;
     }
     blanked
+}
+
+/// Whether only indentation separates the occurrence at `at` from the start of
+/// its line.
+fn opens_a_line(text: &str, at: usize) -> bool {
+    text[..at]
+        .rsplit_once('\n')
+        .map_or(&text[..at], |(_, line)| line)
+        .chars()
+        .all(|character| character == ' ' || character == '\t')
 }
 
 /// Whether the occurrence stands alone rather than sitting inside a longer word.
@@ -694,6 +773,72 @@ mod tests {
             rewritten.starts_with("x: SomeVeryLongTypeName"),
             "{rewritten}"
         );
+    }
+
+    // -- Python: PEP 810 lazy imports ---------------------------------------
+
+    fn python(source: &str) -> Option<String> {
+        neutralize("python", source.as_bytes())
+            .map(|rewritten| String::from_utf8(rewritten.source).unwrap_or_default())
+    }
+
+    #[test]
+    fn both_spellings_of_a_lazy_import_are_blanked() {
+        assert_eq!(python("lazy import os\n").unwrap(), "     import os\n");
+        assert_eq!(
+            python("lazy from os import path\n").unwrap(),
+            "     from os import path\n"
+        );
+        // Indented, as in `Lib/concurrent/futures/__init__.py`.
+        assert_eq!(
+            python("    lazy from .a import B\n").unwrap(),
+            "         from .a import B\n"
+        );
+    }
+
+    #[test]
+    fn a_lazy_rewrite_never_moves_a_byte() {
+        let source = "lazy import json\nx = 1\n";
+        assert_eq!(python(source).expect("blanked").len(), source.len());
+    }
+
+    #[test]
+    fn blanking_a_lazy_import_does_not_narrow_anything() {
+        let rewritten = neutralize("python", b"lazy import os\n").expect("blanked");
+        assert!(
+            !rewritten.narrowed,
+            "the module is still imported and the name still bound"
+        );
+    }
+
+    /// A soft keyword is an ordinary identifier everywhere but one position,
+    /// and `from .lazy import x` turns a file that PARSES into one that does
+    /// not. CPython's `Lib/test/test_syntax.py` holds this and a real lazy
+    /// import in the same file.
+    #[test]
+    fn lazy_is_only_a_keyword_where_it_opens_a_line() {
+        assert!(python("from .lazy import x\n").is_none());
+        assert!(python("from ...lazy import x\n").is_none());
+        assert!(python("from . sub.lazy import x\n").is_none());
+        assert!(python("import lazy\n").is_none());
+        assert!(python("x = lazy\nimport os\n").is_none());
+        // A longer word that merely starts with it.
+        assert!(python("lazy_import(module)\n").is_none());
+        assert!(python("lazily import\n").is_none());
+    }
+
+    #[test]
+    fn ordinary_python_is_left_alone() {
+        assert!(python("import os\n").is_none());
+        assert!(python("from collections import defaultdict\n").is_none());
+        assert!(python("def f():\n    pass\n").is_none());
+    }
+
+    #[test]
+    fn other_languages_do_not_take_the_python_rule() {
+        // `lazy` opens a line before an `import` in TypeScript too, and there
+        // it is ordinary code.
+        assert!(neutralize("typescript", b"lazy\nimport x from 'y';").is_none());
     }
 
     #[test]

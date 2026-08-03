@@ -1,0 +1,38 @@
+schema = 1
+id = "tree-sitter-python"
+language = "python"
+version = "0.25.0"
+source = "https://github.com/tree-sitter/tree-sitter-python"
+revision = "293fdc02038ee2bf0e2e206711b69c90ac0d413f"
+license = "MIT"
+abi = 15
+sha256 = "16108b50df4ee9a30168794252ab55e7c93bfc5765d7fa0aa3e335752c515f47"
+comparison-domain = "python"
+
+[files]
+extensions = ["py", "pyi"]
+
+[tokenization]
+ignored-node-kinds = ["comment"]
+identifier-node-kinds = ["identifier"]
+# Only LEAF kinds carry a lexeme, because that is all `infact-duplication`
+# classifies. A Python `string` is not one: it is a parent of `string_start`,
+# `string_content`, and `string_end`, so declaring `string` here would name a
+# kind that exists and still normalize nothing. The quotes stay unnormalized
+# deliberately -- `f"..."`, `b"..."`, and `r"..."` are different values, and
+# `string_start` is the only thing that says which.
+literal-node-kinds = [
+    "ellipsis",
+    "escape_sequence",
+    "false",
+    "float",
+    "integer",
+    "none",
+    "string_content",
+    "true",
+]
+unit-node-kinds = [
+    "class_definition",
+    "function_definition",
+    "lambda",
+]

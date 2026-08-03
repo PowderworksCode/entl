@@ -9,7 +9,7 @@
 
 use std::path::PathBuf;
 
-use entl_tree_sitter::{Error, ParserPack, Propagation};
+use entl_tree_sitter::{Error, ParserPack, ParserRuntime, Propagation};
 
 fn typescript_pack_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../parser-packs/typescript")
@@ -36,6 +36,23 @@ fn pack_with_manifest(manifest: &str) -> (tempfile::TempDir, PathBuf) {
         .next()
         .expect("the rust manifest still has an error-handling section");
     std::fs::write(root.join("parser.toml"), format!("{head}\n{manifest}")).unwrap();
+    (directory, root)
+}
+
+/// The same, replacing the `[tokenization]` section rather than appending
+/// after it.
+fn pack_with_tokenization(tokenization: &str) -> (tempfile::TempDir, PathBuf) {
+    let (directory, root) = pack_with_manifest("");
+    let original = std::fs::read_to_string(root.join("parser.toml")).unwrap();
+    let head = original
+        .split("\n[tokenization]")
+        .next()
+        .expect("the rust manifest still has a tokenization section");
+    std::fs::write(
+        root.join("parser.toml"),
+        format!("{head}\n[tokenization]\n{tokenization}"),
+    )
+    .unwrap();
     (directory, root)
 }
 
@@ -158,4 +175,54 @@ fn propagation_defaults_to_declared() {
         pack.manifest().error_handling.propagation,
         Propagation::Declared
     );
+}
+
+/// A node kind the grammar does not define is the same failure as a misspelled
+/// key, one step later: the pack loads, the kind matches nothing, and the pack
+/// reads exactly as if it had declared nothing.
+///
+/// This is not hypothetical. The zig pack shipped `line_comment`,
+/// `doc_comment`, `container_doc_comment` and `field_identifier`, and
+/// `tree-sitter-zig` 1.1.2 has none of them — it spells them `comment` and
+/// `identifier` — so every Zig comment was compared as if it were code and no
+/// test could tell.
+#[test]
+fn a_node_kind_the_grammar_does_not_define_fails_the_load() {
+    // `container_doc_comment` is a real kind in some grammars and not in this
+    // one, which is the point: the manifest cannot be checked without the
+    // grammar it is checked against.
+    let (_directory, root) =
+        pack_with_tokenization("ignored-node-kinds = [\"container_doc_comment\"]\n");
+    let pack = std::sync::Arc::new(ParserPack::load(root).unwrap());
+    let error = ParserRuntime::new().unwrap().load(pack).unwrap_err();
+    assert!(
+        matches!(error, Error::UnknownNodeKind { .. }),
+        "expected an unknown node kind, got {error}"
+    );
+    assert!(
+        error.to_string().contains("container_doc_comment"),
+        "the error should name the kind: {error}"
+    );
+}
+
+/// Every pack in the tree, checked against its own grammar.
+#[test]
+fn every_checked_in_pack_declares_only_kinds_its_grammar_has() {
+    let packs = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../parser-packs");
+    let runtime = ParserRuntime::new().unwrap();
+    let mut checked = 0;
+    let mut directories: Vec<_> = std::fs::read_dir(&packs)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_dir())
+        .collect();
+    directories.sort();
+    for directory in directories {
+        let pack = std::sync::Arc::new(ParserPack::load(&directory).unwrap());
+        runtime
+            .load(pack)
+            .unwrap_or_else(|error| panic!("{}: {error}", directory.display()));
+        checked += 1;
+    }
+    assert!(checked >= 6, "only {checked} packs were checked");
 }
