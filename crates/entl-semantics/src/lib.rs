@@ -107,6 +107,16 @@ pub enum Dispatch {
     Static,
     /// Chosen at run time from the candidates given.
     Virtual,
+    /// A destination named before the generic arguments were known.
+    ///
+    /// The call was read from a body the compiler had not instantiated, so the
+    /// name is the one the source wrote rather than the one that will run. It
+    /// is a real edge and belongs in the graph — a generic function's calls are
+    /// otherwise absent entirely — but it is NOT one destination known for
+    /// certain, and a consumer that treats it as such will be confidently
+    /// wrong. Every `T::clone` in a library reads as `Clone::clone` here, and
+    /// cloning an `Arc` and cloning a `String` are not the same behavior.
+    Unmonomorphized,
     /// The provider found a call but could not say where it goes.
     Unknown,
 }
