@@ -1,5 +1,89 @@
 entl — todo
 
+## dialect.rs now covers Zig, and the retry guard turned out to be load-bearing
+
+Uncommitted on 08-03, in this tree. `dialect.rs` was Rust-only; it now has a
+per-language table and a second KIND of rewrite. Measured against Bun v1.3.14
+(1,292 .zig files) through the checked-in zig pack.
+
+Cowbird had independently built the same idea outside entl — `parse-patches.json`
+plus `analysis/parsepatch.rs`, seven literal find/replace pairs keyed by file
+path, length-preserving for the same reason. Both mechanisms were running in the
+same process on the same bytes, because cowbird calls `LoadedParser::parse`. This
+absorbs the general half.
+
+### What was measured, so nobody re-derives it
+
+    baseline              94 files rejected   39,636 declarations
+    entl policy           88 files rejected   39,691 declarations   6 rewritten
+    unconditional         90 files rejected   39,680 declarations  97 rewritten
+
+Baseline reproduces cowbird's own measured 94 exactly, which is what says the
+harness was reading the same thing.
+
+THREE THINGS THE REASONING GOT WRONG BEFORE THE CORPUS WAS ASKED. Each was
+predicted the other way in the write-up that proposed this:
+
+  1. THE PATCH TABLE IS NOT A DESCRIPTION OF THE DEFECT. It is a description of
+     the seven places where the defect happened to destroy a top-level
+     declaration. Bun has the same construct in at least five spellings —
+     `E!if`, `[N]if`, `[]if`, `?if`, `name: if` — and `: if` alone occurs 159
+     times. A rule written against the position rather than the spelling finds
+     `install/PackageInstall.zig`, which the patch table MISSES. 88 rejected
+     against cowbird's 89.
+
+  2. A TEXT PATTERN OVER-FIRES, AND THE MISFIRE IS DESTRUCTIVE. Applied
+     unconditionally the way cowbird applies its patches — at read time, kept
+     regardless — it fires on 97 files and only 6 need it. Two of the other 91
+     are actively damaged, and BOTH PARSED CLEANLY BEFORE:
+
+       sql_jsc/postgres/types/tag_jsc.zig   0 -> 18 errors,  15 -> 4 declarations
+       sql_jsc/mysql/MySQLValue.zig         0 ->  5 errors,  18 -> 18
+
+  3. SO THE GUARD IS THE FEATURE, not the table. `ParserRuntime::parse` rewrites
+     only a tree that ALREADY has an error and keeps the retry only when it is
+     completely clean. That is what turns a heuristic that loses 11 declarations
+     into one that cannot lose any: neither damaged file is eligible, because
+     neither failed. Entl's policy also BEATS unconditional rewriting outright —
+     88 rejected against 90, +55 declarations against +44 — which is not what
+     "apply more rewrites" intuitively predicts.
+
+     This is the argument for entl owning the mechanism at all. It is not that
+     entl is the tidier home; it is that cowbird's apply-always model has no
+     place to put this rule safely.
+
+### A second kind of rewrite, and why `narrowed` exists
+
+Blanking `const` out of `const trait` leaves what the code SAYS intact. Choosing
+a branch of `if (cond) A else B` does not: the signature is now narrower than
+the file's. parse-patches.json says the same thing about its own data — "these
+five signatures read as narrower than they are ... must not be fed to a model as
+one" — and had nowhere to put it.
+
+`Rewritten::narrowed` and `ParsedFile::rewrites_narrowed` carry that distinction
+to consumers. Spans are correct either way, because byte length is still
+preserved; the SOURCE TEXT at that span is not the author's. A consumer that
+locates declarations is unaffected. One that quotes them is not.
+
+### Left open
+
+[ ] The table is Rust code, and a rewrite is a property of a PINNED GRAMMAR
+    REVISION, not of a language. `parser.toml` already carries the pin
+    (tree-sitter-zig 1.1.2 at 6479aa13) and would be the honest home. Not done:
+    `TypeConditional` is an algorithm, not data, so only half of it can move.
+    Revisit when a third language needs an entry.
+
+[ ] The rewrite does not lex, so it can fire inside a comment or a string. That
+    was already true of the Rust rewrites and costs nothing under the retry
+    guard, but it is why the `: if` case is admitted so broadly.
+
+[ ] COWBIRD AND BAOZI ARE UNTOUCHED, per this repo's rule about sibling
+    consumers. Six of the seven entries in `baozi/parse-patches.json` are now
+    redundant and one is not: `ParsedShellScript.zig`'s `#` -> `_` is a
+    different defect and stays. Whether `analysis/parsepatch.rs` survives at all
+    is cowbird's call — note that `coverage/resymbolize.py` applies the same
+    `#` -> `_` mapping by hand and would have to agree with whatever is decided.
+
 ## entl-rust-mir now resolves instances — COUPLED TO INFACT, DO NOT MOVE ALONE
 
 Uncommitted on 08-02, in this tree: `crates/entl-rust-mir/src/main.rs` resolves
