@@ -1,0 +1,15 @@
+[package]
+name = "entl-zig-observe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Observes Zig container fields, with spans, from a parsed source tree."
+
+[dependencies]
+entl-tree-sitter = { path = "../entl-tree-sitter" }
+tree-sitter.workspace = true
+
+[lints]
+workspace = true
