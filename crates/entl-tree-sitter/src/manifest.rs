@@ -67,6 +67,19 @@ pub struct TokenizationManifest {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ErrorHandlingManifest {
+    /// Whether a signature can decline to propagate a failure.
+    ///
+    /// Rust declares failure in the return type, so a callable returning
+    /// neither `Result` nor `Option` genuinely cannot report one — changing
+    /// that needs a new signature. TypeScript does not: any callable can throw,
+    /// so not catching is always available and no signature declines it.
+    ///
+    /// This decides what an unrecognized return type means. Under `Declared` it
+    /// means the failure has nowhere to go; under `Unchecked` it means the
+    /// signature simply had nothing to say, and the failure could still have
+    /// been left alone.
+    #[serde(default)]
+    pub propagation: Propagation,
     /// Type names that, named in a return type, mean a failure can be reported.
     #[serde(default, rename = "fallible-types")]
     pub fallible_types: Vec<String>,
@@ -93,6 +106,17 @@ pub struct ErrorHandlingManifest {
     /// ambiguous is a fact about this language's standard library.
     #[serde(default, rename = "ambiguous-forms")]
     pub ambiguous_forms: Vec<String>,
+}
+
+/// Whether a callable's signature can decline to propagate a failure.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Propagation {
+    /// The signature says so, and one that says nothing cannot propagate.
+    #[default]
+    Declared,
+    /// Any callable can raise a failure, whatever its signature says.
+    Unchecked,
 }
 
 /// How a language marks code that only runs under test.

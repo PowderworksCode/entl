@@ -9,7 +9,11 @@
 
 use std::path::PathBuf;
 
-use entl_tree_sitter::{Error, ParserPack};
+use entl_tree_sitter::{Error, ParserPack, Propagation};
+
+fn typescript_pack_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../parser-packs/typescript")
+}
 
 fn rust_pack_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../parser-packs/rust")
@@ -117,5 +121,41 @@ fn an_unknown_tests_key_is_rejected() {
     assert!(
         matches!(error, Error::Manifest { .. }),
         "expected a manifest error, got {error}"
+    );
+}
+
+/// Rust declares failure in the signature; TypeScript does not.
+///
+/// This decides what an unrecognized return type means. A Rust callable
+/// returning neither `Result` nor `Option` genuinely cannot report a failure. A
+/// TypeScript callable can always throw, so a signature that says nothing has
+/// declined nothing, and calling it infallible would claim the error was
+/// trapped when not catching it was available the whole time.
+#[test]
+fn propagation_distinguishes_declared_failure_from_unchecked() {
+    let rust = ParserPack::load(rust_pack_path()).unwrap();
+    assert_eq!(
+        rust.manifest().error_handling.propagation,
+        Propagation::Declared,
+        "Rust declares failure in the return type"
+    );
+
+    let typescript = ParserPack::load(typescript_pack_path()).unwrap();
+    assert_eq!(
+        typescript.manifest().error_handling.propagation,
+        Propagation::Unchecked,
+        "any TypeScript callable can throw"
+    );
+}
+
+/// The safe reading is the default: a pack that says nothing gets `Declared`,
+/// which reports less reach rather than more.
+#[test]
+fn propagation_defaults_to_declared() {
+    let (_directory, root) = pack_with_manifest("");
+    let pack = ParserPack::load(root).unwrap();
+    assert_eq!(
+        pack.manifest().error_handling.propagation,
+        Propagation::Declared
     );
 }
