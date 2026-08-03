@@ -1,11 +1,10 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use sha2::{Digest, Sha256};
 use tree_sitter::{
-    Language, Node, Parser, Query, QueryCursor, StreamingIterator, Tree, WasmStore,
-    wasmtime::Engine,
+    Node, Parser, Query, QueryCursor, StreamingIterator, Tree, WasmStore, wasmtime::Engine,
 };
 
 use crate::{Error, ParserPack, Result};
@@ -70,10 +69,18 @@ impl<'a> QueryMatch<'a> {
 }
 
 pub struct LoadedParser {
-    engine: Engine,
     pack: Arc<ParserPack>,
-    language: Language,
     queries: BTreeMap<String, Query>,
+    /// A parser with its Wasm store and language already configured.
+    ///
+    /// Building one costs about 123ms regardless of the file: measured, a
+    /// 19-byte source took 123ms to parse and a 40KB source took 210ms, so
+    /// nearly all of the smaller number was setup being repeated. Doing it per
+    /// file put 128 seconds of pure overhead in front of a thousand-file
+    /// repository before any work happened. It is held behind a lock because
+    /// `Parser::parse` needs `&mut`, while every consumer holds this by
+    /// reference and some hold it inside a shared `ParsedRepository`.
+    parser: Mutex<Parser>,
 }
 
 impl std::fmt::Debug for LoadedParser {
@@ -137,21 +144,10 @@ impl LoadedParser {
     ) -> Result<ParsedFile> {
         let path = path.into();
         let source = source.into();
-        let mut parser = Parser::new();
-        let store =
-            WasmStore::new(&self.engine).map_err(|error| Error::Runtime(error.to_string()))?;
-        parser
-            .set_wasm_store(store)
-            .map_err(|error| Error::ConfigureParser {
-                pack: self.pack.manifest().id.clone(),
-                message: error.to_string(),
-            })?;
-        parser
-            .set_language(&self.language)
-            .map_err(|error| Error::ConfigureParser {
-                pack: self.pack.manifest().id.clone(),
-                message: error.to_string(),
-            })?;
+        let mut parser = self.parser.lock().map_err(|error| Error::ConfigureParser {
+            pack: self.pack.manifest().id.clone(),
+            message: format!("the parser is unusable after an earlier panic: {error}"),
+        })?;
         let mut tree = parser
             .parse(source.as_ref(), None)
             .ok_or_else(|| Error::ParseCancelled { path: path.clone() })?;
@@ -241,11 +237,27 @@ impl ParserRuntime {
             })?;
             queries.insert(name.clone(), query);
         }
+        // Configure the parser once, here, rather than on every parse.
+        let mut parser = Parser::new();
+        let store =
+            WasmStore::new(&self.engine).map_err(|error| Error::Runtime(error.to_string()))?;
+        parser
+            .set_wasm_store(store)
+            .map_err(|error| Error::ConfigureParser {
+                pack: pack.manifest().id.clone(),
+                message: error.to_string(),
+            })?;
+        parser
+            .set_language(&language)
+            .map_err(|error| Error::ConfigureParser {
+                pack: pack.manifest().id.clone(),
+                message: error.to_string(),
+            })?;
+
         Ok(LoadedParser {
-            engine: self.engine.clone(),
             pack,
-            language,
             queries,
+            parser: Mutex::new(parser),
         })
     }
 }
