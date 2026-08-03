@@ -30,6 +30,15 @@ pub struct ParsedFile {
     /// Empty for source the grammar accepts as written. A consumer that cares
     /// whether it is looking at the file as the author wrote it can check.
     pub rewrites: Vec<&'static str>,
+    /// Whether a rewrite changed what the source says rather than only what the
+    /// grammar could read.
+    ///
+    /// Every rewrite preserves byte length, so a span reported against this
+    /// file is correct either way. The text at that span is not: a rewrite that
+    /// had to choose between two comptime-conditional types produced a
+    /// signature narrower than the one in the file, and quoting it as the
+    /// author's would be a false claim.
+    pub rewrites_narrowed: bool,
     pub path: PathBuf,
     pub source: Arc<[u8]>,
     pub tree: Tree,
@@ -158,6 +167,7 @@ impl LoadedParser {
         // already failed is rewritten, so an accepted file is never altered.
         let mut source = source;
         let mut rewrites = Vec::new();
+        let mut rewrites_narrowed = false;
         if tree.root_node().has_error()
             && let Some(rewritten) =
                 crate::dialect::neutralize(self.pack.language().id, source.as_ref())
@@ -166,6 +176,7 @@ impl LoadedParser {
         {
             source = Arc::<[u8]>::from(rewritten.source);
             rewrites = rewritten.reasons;
+            rewrites_narrowed = rewritten.narrowed;
             tree = retried;
         }
         Ok(ParsedFile {
@@ -181,6 +192,7 @@ impl LoadedParser {
             source,
             tree,
             rewrites,
+            rewrites_narrowed,
         })
     }
 }

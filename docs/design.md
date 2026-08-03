@@ -142,6 +142,16 @@ parse provenance. Selection uses the detected Entl language plus the file path;
 this permits grammar variants such as TypeScript and TSX to coexist without a
 consumer-owned extension table.
 
+A grammar can lag the language it parses, and Tree-sitter rejects an entire file
+when any part of it is beyond what the grammar knows. Entl retries such a file
+against a per-language rewrite table and keeps the result only when the retry
+parses cleanly, so a file the grammar already accepts is never altered. Every
+rewrite preserves byte length, which is what makes a reported span correct
+whether or not one applied. A rewrite that had to choose between alternatives
+the source left open is reported apart from one that only removed unreadable
+syntax: the first changes what the file says, and a consumer that quotes source
+rather than merely locating it needs to know which kind it has.
+
 ## Next adapters
 
 The next likely steps are:
