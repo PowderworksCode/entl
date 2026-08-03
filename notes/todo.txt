@@ -188,6 +188,39 @@ nothing automated would catch a regression.
     cargo test   --manifest-path crates/entl-rust-mir/Cargo.toml
     Runs on the pinned nightly, so it wants its own job rather than being
     folded into the workspace one.
+    NOTE the manifest-path form does NOT pick up the pinned toolchain —
+    rust-toolchain.toml resolves from the CURRENT DIRECTORY, so run these from
+    inside crates/entl-rust-mir or they fail with "can't find crate for
+    rustc_driver" and look like a missing component rather than a wrong
+    toolchain.
+
+## Using the driver as RUSTC — three blockers, one fixed
+
+Measured 08-02 while quantifying the generic-function gap. The notes in infact
+call generating observations "the highest-value next task by a wide margin";
+these are what actually stands in the way of `RUSTC=entl-rust-mir cargo build`.
+
+[x] The driver exited 1 on `rustc -vV`   -- FIXED 08-02
+    `run!` reports a compile-nothing invocation as `CompilerError::Skipped`,
+    and main mapped every error to FAILURE. A build tool asks `-vV` and
+    `--print sysroot` BEFORE it asks for a compilation, so cargo died on the
+    probe and never reached the first crate. Two lines. This alone is why
+    there was no one-command path.
+    Regression-tested by `a_probe_that_compiles_nothing_still_succeeds`, which
+    was confirmed to fail without the fix rather than assumed to.
+
+[ ] sccache rejects the driver, so the wrapper has to be off
+    sccache probes a compiler with `-E`, the driver refuses, and the build
+    fails with "Compiler not supported". sccache cannot cache a custom rustc
+    anyway. Whatever one-command path gets built must clear RUSTC_WRAPPER for
+    that invocation — worth designing in rather than rediscovering.
+
+[ ] It panics reading syn's MIR
+    rustc_public/src/mir/body.rs:1057 during `visit_body`, on
+    syn 3.0.3. Five crates observed cleanly first (proc_macro2, quote,
+    serde_core, unicode_ident, a build script), then a hard stop. Not
+    diagnosed. A driver that aborts the build on one crate cannot be a
+    drop-in RUSTC, so this gates the same task.
 
 [ ] Decide whether it should carry the lint denials
     A non-member crate needs them written into its own `[lints]` table; it

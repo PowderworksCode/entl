@@ -36,6 +36,11 @@ fn main() -> std::process::ExitCode {
     let arguments = std::env::args().collect::<Vec<_>>();
     match rustc_public::run!(&arguments, observe) {
         Ok(()) => std::process::ExitCode::SUCCESS,
+        // `rustc --print`, `-vV` and friends compile nothing, and a build tool
+        // asks those before it asks for a compilation. Reporting failure there
+        // makes this unusable as a drop-in `RUSTC`, which is the only way a
+        // normal build produces observations at all.
+        Err(rustc_public::CompilerError::Skipped) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("entl-rust-mir: {error:?}");
             std::process::ExitCode::FAILURE
