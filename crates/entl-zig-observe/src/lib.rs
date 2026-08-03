@@ -33,6 +33,10 @@ use std::path::{Path, PathBuf};
 use entl_tree_sitter::ParsedFile;
 use tree_sitter::Node;
 
+mod assign;
+
+pub use assign::{AssignmentForm, FieldAssignment, MethodCall, assignments, method_calls};
+
 /// Where an observation was made, in bytes and in lines.
 ///
 /// Both, because a byte range is what a later pass slices with and a line is
@@ -47,7 +51,7 @@ pub struct Span {
 }
 
 impl Span {
-    fn of(node: Node<'_>) -> Self {
+    pub(crate) fn of(node: Node<'_>) -> Self {
         Span {
             start_byte: node.start_byte(),
             end_byte: node.end_byte(),
