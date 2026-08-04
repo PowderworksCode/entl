@@ -234,6 +234,32 @@ impl ParserRuntime {
                 actual,
             });
         }
+        // A tokenization kind the grammar has never heard of fails exactly the
+        // way an uncompiled query would: it matches nothing, silently, and the
+        // pack reads as if it had declared nothing at all. The zig pack
+        // declared `line_comment`, `doc_comment`, `container_doc_comment` and
+        // `field_identifier`, none of which `tree-sitter-zig` 1.1.2 has, so
+        // every Zig comment was being compared as code and nobody could tell.
+        let tokenization = &pack.manifest().tokenization;
+        for (field, kinds) in [
+            ("ignored-node-kinds", &tokenization.ignored_node_kinds),
+            ("identifier-node-kinds", &tokenization.identifier_node_kinds),
+            ("literal-node-kinds", &tokenization.literal_node_kinds),
+            ("unit-node-kinds", &tokenization.unit_node_kinds),
+        ] {
+            for kind in kinds {
+                if language.id_for_node_kind(kind, true) == 0
+                    && language.id_for_node_kind(kind, false) == 0
+                {
+                    return Err(Error::UnknownNodeKind {
+                        pack: pack.manifest().id.clone(),
+                        field: field.to_owned(),
+                        kind: kind.clone(),
+                    });
+                }
+            }
+        }
+
         // Compile here, where the failure can still stop the load. A query
         // that does not compile would otherwise match nothing, and a rule that
         // matches nothing reports nothing, which reads as a clean repository.

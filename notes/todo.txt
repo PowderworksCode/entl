@@ -1,5 +1,109 @@
 entl — todo
 
+## A Python pack exists, and the number that matters is not the one Zig taught
+
+Measured 08-03 before anything was built on it, which is the order the Zig work
+argued for. Two corpora, `--example parse-rate`:
+
+    installed Python (/usr/lib/python3, /usr/lib/python3.12)
+      5,676 files   70.6 MB   0 rejected   0.00%
+
+    CPython main @ 2ba0b2c9d1d0
+      2,346 files   42.3 MB  61 rejected   2.60%
+
+So step 1 was an afternoon, not a day. Everything the brief warned Python would
+trip over — match statements, walrus, positional-only parameters, PEP 695 type
+parameters, async comprehensions — `tree-sitter-python` 0.25.0 reads as written.
+The census over CPython's Lib found 344 `match_statement`, 934 `type_parameter`,
+324 `named_expression`, 357 `positional_separator`. None of them cost anything.
+`tests/python_pack.rs` pins all of it so a grammar bump cannot quietly regress.
+
+### THE MEASUREMENT THAT WAS BEING TAKEN WRONG
+
+The Zig work's mental model is "a grammar hole deletes the file". In Python that
+is false at the grammar level and true at ours, and the two numbers are fifty
+times apart:
+
+    bytes inside ERROR nodes            23,361   0.055%
+    bytes in files a consumer never sees  1,702,467   4.02%
+
+Python statements are delimited by newlines, so `tree-sitter` recovers: given
+`lazy import json`, it emits `(ERROR (identifier))` and then a COMPLETE
+`import_statement` beside it. Nothing was lost. What loses the file is
+`repository.rs:75` — `parse_repository` admits a file only when its tree is
+completely clean and `continue`s past it otherwise. A four-byte error node
+therefore costs a thirty-kilobyte module every fact it had.
+
+I predicted the rewrite would recover lost import edges. It does not; the edges
+were never lost. It is worth having anyway, for a reason I had not identified:
+it moves files across entl's own all-or-nothing admission line. Same conclusion,
+wrong reasoning, and the corpus is what said so.
+
+`parse-rate` now prints both numbers with that distinction spelled out, because
+reporting only the first would have read as "Python is fine".
+
+### The rewrite table gained Python, and `Rule::Blank` gained `leading`
+
+PEP 810 `lazy import` / `lazy from` accounts for 56 of the 61. Blanking `lazy`
+is length-preserving and Fidelity::Preserved: the module is still imported and
+the name still bound, only the moment changes, and nothing entl reports names
+it. (The alternative reading is that laziness is behavior and this is Narrowed.
+Preserved is the same standard `const trait` is already held to.)
+
+    errored files   61  ->   5
+    dropped bytes   1,702,467  ->  339,763
+    files rewritten  0  ->  56
+
+`lazy` is a SOFT keyword, so `leading` — the keyword must open its line — is
+load-bearing and not a nicety. `from .lazy import x` names a module; blanking
+that turns a file that PARSES into one that does not, and CPython's
+`Lib/test/test_syntax.py` holds both spellings in one file.
+
+[ ] The four gaps left, each exactly one file, all in CPython's own test suite
+    and none in 5,676 files of installed Python. Pinned by
+    `the_gaps_that_remain_are_known_and_still_gaps`, which FAILS when a gap
+    closes, so a grammar bump reports them rather than leaving them believed.
+      - PEP 696 type-parameter defaults, `def f[T = int]()`. WATCH THIS ONE:
+        released syntax since 3.13, so unlike the others it will spread into
+        ordinary libraries. Blanking `= int` inside a type-parameter list is
+        length-preserving and would be Narrowed; it needs a new Rule variant
+        that knows it is inside `[..]`, which is why it is not done here.
+      - a parenthesized starred expression in a subscript, `Union[*(k.values())]`
+      - a `+`-signed literal pattern, `case +0:`
+      - a parenthesized continuation dedented past its own block
+
+[ ] The pack ships no `[error-handling]`, no `[tests]`, and no queries. All
+    three are deliberate: every field of `ErrorHandlingManifest` is shaped
+    around a fallible RETURN TYPE, and Python spells failure with exceptions.
+    Inventing values for it before writing Python's discard forms would be
+    guessing. They land with `queries/discards.scm`.
+
+## A tokenization kind the grammar never had was dead data, and zig had four
+
+Found while checking my own manifest rather than by looking for it. The zig pack
+declared
+
+    ignored-node-kinds    line_comment, doc_comment, container_doc_comment
+    identifier-node-kinds field_identifier
+
+and `tree-sitter-zig` 1.1.2 has NONE of them — it spells them `comment` and
+`identifier`. `infact-duplication` looks kinds up by string, so every Zig comment
+has been compared as if it were code since the pack landed, and every test
+passed. Fixed in `parser-packs/zig/parser.toml`.
+
+This is the same failure as a query that does not compile, one step later:
+matches nothing, silently, and reads as a pack that declared nothing. It is now
+the same KIND of failure too — `ParserRuntime::load` rejects a tokenization kind
+the grammar does not define, so it cannot be reintroduced. Every checked-in pack
+is loaded by `every_checked_in_pack_declares_only_kinds_its_grammar_has`.
+
+The Python manifest was written against this check and a leaf census rather than
+against the node names. It matters: `infact-duplication` classifies only LEAF
+nodes, and a Python `string` is a parent of `string_start`/`string_content`/
+`string_end`. Declaring `string` a literal names a kind that exists and still
+normalizes nothing — the check would not have caught that one, and the census
+did.
+
 ## dialect.rs now covers Zig, and the retry guard turned out to be load-bearing
 
 Uncommitted on 08-03, in this tree. `dialect.rs` was Rust-only; it now has a

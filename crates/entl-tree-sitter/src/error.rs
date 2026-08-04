@@ -78,6 +78,13 @@ pub enum Error {
         available: String,
     },
 
+    #[error("parser pack {pack:?} declares {kind:?} in {field}, which its grammar does not define")]
+    UnknownNodeKind {
+        pack: String,
+        field: String,
+        kind: String,
+    },
+
     #[error("Tree-sitter cancelled parsing {path}")]
     ParseCancelled { path: PathBuf },
 }
