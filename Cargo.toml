@@ -6,6 +6,7 @@ members = [
     "crates/entl-semantics",
     "crates/entl-tree-sitter",
     "crates/entl-ts-observe",
+    "crates/entl-zig-observe",
 ]
 
 exclude = ["crates/entl-rust-mir"]
