@@ -1,0 +1,21 @@
+[package]
+name = "entl-zig-air"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Observes resolved Zig semantics from the compiler's AIR dump, as Parquet."
+
+[[bin]]
+name = "entl-zig-air"
+path = "src/main.rs"
+
+[dependencies]
+arrow-array = "59"
+arrow-schema = "59"
+parquet = { version = "59", features = ["arrow"] }
+thiserror.workspace = true
+
+[lints]
+workspace = true
