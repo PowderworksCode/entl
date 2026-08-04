@@ -48,24 +48,32 @@ pub fn parse_repository(
     let mut files = Vec::new();
 
     for file in &tree.files {
-        let Some(language) = file
-            .language
-            .as_ref()
-            .map(|detection| detection.language.as_str())
-        else {
+        let Some(detection) = file.language.as_ref() else {
             continue;
         };
+        let language = detection.language.as_str();
         // A file whose language is known but has no pack is the one skip that
         // used to be silent, and it is the one that most needs saying: every
         // other path out of this loop records a diagnostic, so a consumer could
         // report a repository as clean when an entire language went unread.
         // It was Python's own state until a pack existed, and it is the state
         // of every language this fleet has not onboarded.
+        //
+        // Only for a role that expects a pack, though. Saying it for every
+        // detected language made a README, a YAML file, and the very
+        // `straitjacket.toml` a run was configured by each report as unread —
+        // three findings that name nothing a consumer would parse, burying the
+        // Go and C++ gaps this is meant to surface.
         let Some(pack) = catalog.resolve(language, &file.path) else {
-            diagnostics.push(ParseDiagnostic {
-                path: file.path.clone(),
-                message: format!("no {language} parser pack is configured, so nothing read it"),
-            });
+            if detection
+                .profile()
+                .is_some_and(|profile| profile.role.expects_parser_pack())
+            {
+                diagnostics.push(ParseDiagnostic {
+                    path: file.path.clone(),
+                    message: format!("no {language} parser pack is configured, so nothing read it"),
+                });
+            }
             continue;
         };
         let parser = parsers
