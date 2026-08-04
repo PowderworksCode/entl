@@ -55,7 +55,17 @@ pub fn parse_repository(
         else {
             continue;
         };
+        // A file whose language is known but has no pack is the one skip that
+        // used to be silent, and it is the one that most needs saying: every
+        // other path out of this loop records a diagnostic, so a consumer could
+        // report a repository as clean when an entire language went unread.
+        // It was Python's own state until a pack existed, and it is the state
+        // of every language this fleet has not onboarded.
         let Some(pack) = catalog.resolve(language, &file.path) else {
+            diagnostics.push(ParseDiagnostic {
+                path: file.path.clone(),
+                message: format!("no {language} parser pack is configured, so nothing read it"),
+            });
             continue;
         };
         let parser = parsers

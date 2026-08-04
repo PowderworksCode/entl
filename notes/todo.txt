@@ -1,5 +1,31 @@
 entl — todo
 
+## A file no pack could read is now reported, not skipped
+
+Fixed 08-04. `parse_repository` had one silent way out of its loop: a file
+whose language was DETECTED but for which no pack is configured. Every other
+skip recorded a diagnostic, so a consumer reading diagnostics described a
+repository as clean when it had read none of it.
+
+    before   straitjacket: ok — no findings in 44 file(s)
+    after    src/encoder.py:1:1 [analysis-incomplete] exact-clones
+               no python parser pack is configured, so nothing read it
+
+The straitjacket notes proposed fixing this in `infact-analysis`. That was the
+wrong place: this is an observation about a file that was not read, the
+`ParseDiagnostic` type already exists here for exactly that, and fixing it at
+the drop site serves every consumer instead of one. Nothing downstream changed;
+`analysis-incomplete` works unchanged because the diagnostic it already reports
+now exists.
+
+A file with NO detected language is still silent, and should be: a README is
+not a source file nobody could read, it is not source. `tests/repository.rs`
+pins both halves plus the case where the pack is present.
+
+KNOWN NOISE: one diagnostic per analyzer, so a file unread by both clone rules
+reports twice. That matches how the effects and errors diagnostics already
+behave, and deduping them would hide that two separate analyses each failed.
+
 ## A Python pack exists, and the number that matters is not the one Zig taught
 
 Measured 08-03 before anything was built on it, which is the order the Zig work
