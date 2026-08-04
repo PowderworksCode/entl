@@ -34,8 +34,17 @@ use entl_tree_sitter::ParsedFile;
 use tree_sitter::Node;
 
 mod assign;
+mod func;
+mod shape;
 
 pub use assign::{AssignmentForm, FieldAssignment, MethodCall, assignments, method_calls};
+pub use func::{
+    Argument, CallSite, Function, Local, Parameter, ReturnSite, call_sites, functions, locals,
+    returns,
+};
+pub use shape::{
+    DeferKind, Deferred, ParentRecovery, PointerShape, TypeShape, deferred, parent_recoveries,
+};
 
 /// Where an observation was made, in bytes and in lines.
 ///
@@ -125,7 +134,7 @@ impl ContainerKind {
 }
 
 /// Is this node a container declaration?
-fn is_container(node: Node<'_>) -> bool {
+pub(crate) fn is_container(node: Node<'_>) -> bool {
     matches!(
         node.kind(),
         "struct_declaration" | "union_declaration" | "enum_declaration" | "opaque_declaration"
@@ -210,6 +219,19 @@ pub fn fields(file: &ParsedFile) -> Vec<ContainerField> {
 ///
 /// Its presence is the signal that the file is a type rather than a namespace,
 /// so the answer is an `Option` and the absence is meaningful.
+/// What the file itself is called, for the things written directly in it.
+///
+/// A file is a struct in Zig: `pub const HotReloadEvent = @This();` then
+/// `owner: *DevServer,` is `HotReloadEvent.owner`. The stem stands in when a
+/// file makes no such claim.
+pub(crate) fn file_scope(root: Node<'_>, source: &[u8], path: &Path) -> String {
+    declared_self(root, source).unwrap_or_else(|| {
+        path.file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    })
+}
+
 fn declared_self(root: Node<'_>, source: &[u8]) -> Option<String> {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -240,12 +262,15 @@ fn declared_self(root: Node<'_>, source: &[u8]) -> Option<String> {
     None
 }
 
-fn text(node: Node<'_>, source: &[u8]) -> Option<String> {
+pub(crate) fn text(node: Node<'_>, source: &[u8]) -> Option<String> {
     node.utf8_text(source).ok().map(str::to_string)
 }
 
 /// The name and container a `variable_declaration` binds, when it binds one.
-fn bound_container<'tree>(node: Node<'tree>, source: &[u8]) -> Option<(String, Node<'tree>)> {
+pub(crate) fn bound_container<'tree>(
+    node: Node<'tree>,
+    source: &[u8],
+) -> Option<(String, Node<'tree>)> {
     let mut cursor = node.walk();
     let children: Vec<Node<'tree>> = node.children(&mut cursor).collect();
     let container = children
@@ -331,7 +356,7 @@ fn visit(
 }
 
 /// The identifier a `fn` declaration names.
-fn declared_name(node: Node<'_>, source: &[u8]) -> Option<String> {
+pub(crate) fn declared_name(node: Node<'_>, source: &[u8]) -> Option<String> {
     let mut cursor = node.walk();
     node.children(&mut cursor)
         .find(|child| child.kind() == "identifier")
