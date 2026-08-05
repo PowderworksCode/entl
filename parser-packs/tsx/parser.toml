@@ -45,3 +45,33 @@ unit-node-kinds = [
     "generator_function",
     "method_definition",
 ]
+
+# Byte-for-byte the typescript pack's block, and it has to be. This pack and
+# that one are the SAME LANGUAGE read by two grammars -- `.tsx` and `.ts` are
+# both `language = "typescript"` -- so a difference here is not a difference
+# between languages, it is the same code getting two verdicts depending on which
+# file it was written in. Measured before this landed: identical bytes in `a.ts`
+# and `a.tsx` reported "is fallible" and "is infallible" respectively.
+#
+# `packs_for_one_language_describe_it_the_same_way` is what keeps them level.
+[error-handling]
+# Any TypeScript callable can throw, so not catching is always available and no
+# signature declines it. Every callable is therefore fallible, and every discard
+# is reportable where it stands -- which is why reach comes out `local` and the
+# search up the call graph never runs. There is no sealed discard in a language
+# where everything propagates.
+propagation = "unchecked"
+# Kept for the one thing a signature does say: an `async` callable rejects.
+# Under `unchecked` it changes no verdict, but it records why.
+fallible-types = ["Promise"]
+optional-types = []
+non-failure-results = []
+non-failure-results-forms = []
+# Every form above names the failure directly, so none is ambiguous the way
+# `.unwrap_or_default()` is in Rust.
+ambiguous-forms = []
+
+# `[tests]` is deliberately absent, exactly as in the typescript pack.
+# TypeScript marks tests by filename convention or by a `describe`/`it` call,
+# not by an annotation on the item, so there is nothing for a marker substring
+# to match. An empty section would claim the same thing less clearly.

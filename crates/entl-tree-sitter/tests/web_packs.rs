@@ -39,6 +39,101 @@ fn discovers_and_selects_web_parser_packs() {
     );
 }
 
+fn parser_packs() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("parser-packs")
+}
+
+/// `.ts` and `.tsx` are one language read by two grammars, so the two packs
+/// must claim to describe the same things.
+///
+/// This is not a tidiness rule. `infact-errors` runs on a file only when its
+/// pack ships `callables` and `discards`, and skips it in silence otherwise —
+/// correctly, because a pack describing no discard forms is different from a
+/// language having none. That reasoning holds for a LANGUAGE and fails for a
+/// GRAMMAR: before this, identical bytes in `a.ts` and `a.tsx` produced three
+/// findings and zero, with nothing anywhere saying the second file had been
+/// read by a pack that could not look. The `[error-handling]` half is the
+/// quieter one — with the queries copied across but not the manifest, the same
+/// code came back "is fallible" under one extension and "is infallible" under
+/// the other.
+#[test]
+fn packs_for_one_language_describe_it_the_same_way() {
+    let discovery = ParserCatalog::discover([parser_packs()]);
+    assert!(discovery.errors.is_empty(), "{:?}", discovery.errors);
+
+    // Asserted directly as well as through the absence of errors: two packs
+    // that both shipped nothing would agree perfectly and describe nothing.
+    for id in ["tree-sitter-typescript", "tree-sitter-tsx"] {
+        let pack = discovery
+            .catalog
+            .iter()
+            .find(|pack| pack.manifest().id == id)
+            .unwrap_or_else(|| panic!("no {id} pack"));
+        for query in ["callables", "discards"] {
+            assert!(
+                pack.queries().contains_key(query),
+                "{id} ships no {query} query, so TypeScript written in its \
+                 extensions gets no discard analysis and nothing says so"
+            );
+        }
+        assert_eq!(
+            pack.manifest().error_handling.propagation,
+            entl_tree_sitter::Propagation::Unchecked,
+            "{id} must agree that any TypeScript callable can throw"
+        );
+    }
+}
+
+/// The guard above passes if the check does nothing, so the check is exercised.
+#[test]
+fn a_second_grammar_that_describes_less_is_reported() {
+    let directory = tempfile::tempdir().unwrap();
+    for pack in ["typescript", "tsx"] {
+        let root = directory.path().join(pack);
+        std::fs::create_dir_all(root.join("queries")).unwrap();
+        for entry in std::fs::read_dir(parser_packs().join(pack)).unwrap() {
+            let entry = entry.unwrap();
+            if entry.path().is_file() {
+                std::fs::copy(entry.path(), root.join(entry.file_name())).unwrap();
+            }
+        }
+        for entry in std::fs::read_dir(parser_packs().join(pack).join("queries")).unwrap() {
+            let entry = entry.unwrap();
+            // The divergence under test: the second grammar keeps only the
+            // scaffolding, exactly as it stood before this parity work.
+            if pack == "tsx" && entry.file_name() == "discards.scm" {
+                continue;
+            }
+            std::fs::copy(entry.path(), root.join("queries").join(entry.file_name())).unwrap();
+        }
+    }
+
+    let discovery = ParserCatalog::discover([directory.path().to_path_buf()]);
+    let reported = discovery
+        .errors
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    assert!(
+        reported
+            .iter()
+            .any(|error| error.contains("tree-sitter-tsx") && error.contains("discards")),
+        "a grammar shipping fewer queries than its sibling must be named: {reported:?}"
+    );
+    // Reporting it must not cost the grammar: resolution is unaffected by the
+    // divergence, and dropping the pack would lose `.tsx` outright for anyone
+    // who read past the errors.
+    assert!(
+        discovery
+            .catalog
+            .resolve("typescript", PathBuf::from("src/app.tsx").as_path())
+            .is_some(),
+        "the divergent pack must still be usable"
+    );
+}
+
 #[test]
 fn parses_javascript_typescript_and_tsx() {
     let packs = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
