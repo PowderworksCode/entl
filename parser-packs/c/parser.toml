@@ -1,0 +1,32 @@
+schema = 1
+id = "tree-sitter-c"
+language = "c"
+version = "0.24.2"
+source = "https://github.com/tree-sitter/tree-sitter-c"
+revision = "c9ff62c7ef293ccd6129318f638327dfd6ade7df"
+license = "MIT"
+abi = 15
+sha256 = "83e8d7902b9d7f8c7c5cd4bd9acb5c7eb5faf42c09f85546b183964d3b5f48f9"
+comparison-domain = "c"
+
+[files]
+extensions = ["c", "h"]
+
+[tokenization]
+ignored-node-kinds = ["comment"]
+identifier-node-kinds = [
+    "identifier",
+    "field_identifier",
+    "type_identifier",
+    "statement_identifier",
+]
+literal-node-kinds = [
+    "number_literal",
+    "string_literal",
+    "char_literal",
+    "string_content",
+    "system_lib_string",
+]
+unit-node-kinds = [
+    "function_definition",
+]

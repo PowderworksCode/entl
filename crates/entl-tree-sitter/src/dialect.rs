@@ -73,6 +73,55 @@ enum Rule {
     },
     /// Collapse `if (condition) A else B` in type position to `B`.
     TypeConditional,
+    /// Rewrite a statement-position macro call so the grammar reads a
+    /// conditional: `for_each_x(a, b) {` becomes `if(a, b) {`, the head
+    /// overwritten by spaces that end in `if`.
+    ///
+    /// C spells custom control flow as a function-like macro whose expansion
+    /// is a `for` header, and a grammar that never sees the expansion reads a
+    /// call expression that forgot its semicolon. The arguments stay exactly
+    /// where they were — `(a, b)` is a parenthesized comma expression, which
+    /// `if` accepts — so every identifier keeps its offset and stays visible
+    /// to a consumer reading references. What changes is the shape: a loop
+    /// now reads as a conditional, which is why this is `Narrowed`.
+    CallToIf {
+        /// The macro head. At least three bytes, or `if` would not fit.
+        keyword: &'static str,
+    },
+    /// Blank a whole macro invocation — head through balanced `)`, a
+    /// preceding `static`, a trailing `;` — keeping every newline in place.
+    ///
+    /// For macros that *generate declarations* (`define_commit_slab`,
+    /// `GIT_PATH_FUNC`): no rearrangement of the unexpanded text is a C
+    /// declaration, so the only length-preserving way to recover the file is
+    /// to remove the invocation entirely. The declarations the macro would
+    /// have generated were never visible to a syntax reader in the first
+    /// place; what is lost is the *site*, which is why this is `Narrowed`.
+    BlankInvocation {
+        /// The macro head.
+        keyword: &'static str,
+    },
+    /// Inside `keyword(..)`, overwrite each type-name argument with `0`.
+    ///
+    /// `container_of(ptr, struct foo, member)` passes a *type* where the
+    /// grammar expects an expression. `0` is an expression, fits in one byte,
+    /// and the rest of the argument becomes padding.
+    TypeArgZero {
+        /// The macro head whose arguments may name types.
+        keyword: &'static str,
+    },
+    /// Inside `keyword(..)`, overwrite the argument at `index` with `0`,
+    /// whatever it says.
+    ///
+    /// For macros whose signature *fixes* which argument is a type —
+    /// `va_arg(ap, const char *)` — where recognizing the type by its
+    /// spelling would be guesswork and the position is certain.
+    ZeroArg {
+        /// The macro head.
+        keyword: &'static str,
+        /// Zero-based argument position to overwrite.
+        index: usize,
+    },
 }
 
 struct Rewrite {
@@ -132,6 +181,42 @@ const fn blank_leading(
         },
         reason,
         fidelity: Fidelity::Preserved,
+    }
+}
+
+/// A statement-position macro call rewritten to a conditional.
+const fn call_to_if(keyword: &'static str, reason: &'static str) -> Rewrite {
+    Rewrite {
+        rule: Rule::CallToIf { keyword },
+        reason,
+        fidelity: Fidelity::Narrowed,
+    }
+}
+
+/// A macro invocation blanked in full, wherever it appears.
+const fn blank_invocation(keyword: &'static str, reason: &'static str) -> Rewrite {
+    Rewrite {
+        rule: Rule::BlankInvocation { keyword },
+        reason,
+        fidelity: Fidelity::Narrowed,
+    }
+}
+
+/// A macro whose type-name arguments are each overwritten with `0`.
+const fn type_arg_zero(keyword: &'static str, reason: &'static str) -> Rewrite {
+    Rewrite {
+        rule: Rule::TypeArgZero { keyword },
+        reason,
+        fidelity: Fidelity::Narrowed,
+    }
+}
+
+/// A macro whose argument at a fixed position is overwritten with `0`.
+const fn zero_arg(keyword: &'static str, index: usize, reason: &'static str) -> Rewrite {
+    Rewrite {
+        rule: Rule::ZeroArg { keyword, index },
+        reason,
+        fidelity: Fidelity::Narrowed,
     }
 }
 
@@ -218,9 +303,256 @@ const PYTHON_REWRITES: &[Rewrite] = &[
     ),
 ];
 
+/// C that `tree-sitter-c` cannot read without knowing the macros.
+///
+/// C is the language where the text is not the program: the preprocessor sits
+/// between them. Measured on git at `5b24717` (825 product C/H files,
+/// `tree-sitter-c` 0.24.2), the gap is nonetheless narrow and almost entirely
+/// nameable — the grammar returns a tree for every file, 59.4% of them clean,
+/// and three macro idioms account for most of the rest:
+///
+/// * **Attribute macros in declarator position.** `void f(UNUSED int x)` is
+///   unreadable to a grammar that has never heard of `UNUSED`. Blanked;
+///   nothing the declaration says changes. The six git spellings alone took
+///   ERROR nodes from 1,486 to 355 on that corpus.
+/// * **Iterator macros in statement position.** `for_each_string_list_item`
+///   and eleven relatives read as calls that forgot their semicolon. Nineteen
+///   distinct heads accounted for every one of the 569 `MISSING ;` sites.
+///   Rewritten to `if`, which keeps every argument identifier in place.
+/// * **Declaration-generating macros at file scope.** `define_commit_slab`,
+///   `GIT_PATH_FUNC`, X-macro lists. Nothing readable stands in their place,
+///   so the invocation is blanked in full.
+///
+/// These names are git's. That is by design, not oversight: a dialect table
+/// accretes per corpus (the Rust table above exists because of what `core`
+/// writes), and git is the corpus C support was built against. Other corpora
+/// will add their own heads; the rules are the reusable part.
+const C_REWRITES: &[Rewrite] = &[
+    // -- attribute macros, blanked: the declaration still says what it said.
+    blank("UNUSED", "git's parameter attribute; declarator position"),
+    blank("MAYBE_UNUSED", "git's declaration attribute"),
+    blank("NORETURN_PTR", "git's noreturn for function pointers"),
+    blank("NORETURN", "git's noreturn attribute; declarator position"),
+    blank("LAST_ARG_MUST_BE_NULL", "git's sentinel attribute"),
+    blank("RESULT_MUST_BE_USED", "git's warn_unused_result attribute"),
+    blank("REFTABLE_UNUSED", "reftable's postfix parameter attribute"),
+    blank("WINAPI", "the win32 calling-convention macro"),
+    blank("NTAPI", "the win32 calling-convention macro"),
+    // -- iterator macros, rewritten to a conditional the grammar can read.
+    call_to_if(
+        "for_each_string_list_item",
+        "git's string-list iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "strmap_for_each_entry",
+        "git's strmap iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "strintmap_for_each_entry",
+        "git's strintmap iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "strset_for_each_entry",
+        "git's strset iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "hashmap_for_each_entry_from",
+        "git's hashmap iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "hashmap_for_each_entry",
+        "git's hashmap iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "list_for_each_safe",
+        "git's list iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "list_for_each_prev",
+        "git's list iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "list_for_each_dir",
+        "git's list iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "list_for_each",
+        "git's list iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "prio_queue_for_each",
+        "git's priority-queue iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "repo_for_each_pack",
+        "git's pack iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "for_each_wanted_builtin",
+        "trace2's target iterator macro; a for header in disguise",
+    ),
+    call_to_if(
+        "for_each_builtin",
+        "trace2's target iterator macro; a for header in disguise",
+    ),
+    // -- declaration-generating macros, blanked in full at their site.
+    blank_invocation(
+        "define_commit_slab",
+        "generates a struct and functions no syntax reader sees",
+    ),
+    blank_invocation(
+        "declare_commit_slab",
+        "generates declarations no syntax reader sees",
+    ),
+    blank_invocation(
+        "define_shared_commit_slab",
+        "generates declarations no syntax reader sees",
+    ),
+    blank_invocation(
+        "implement_shared_commit_slab",
+        "generates definitions no syntax reader sees",
+    ),
+    blank_invocation(
+        "implement_commit_slab",
+        "generates definitions no syntax reader sees",
+    ),
+    blank_invocation(
+        "DEFINE_LIST_SORT_DEBUG",
+        "generates a sort function no syntax reader sees",
+    ),
+    blank_invocation(
+        "DEFINE_LIST_SORT",
+        "generates a sort function no syntax reader sees",
+    ),
+    blank_invocation(
+        "DECLARE_LIST_SORT",
+        "generates a prototype no syntax reader sees",
+    ),
+    blank_invocation(
+        "REPO_GIT_PATH_FUNC",
+        "generates an accessor function no syntax reader sees",
+    ),
+    blank_invocation(
+        "GIT_PATH_FUNC",
+        "generates an accessor function no syntax reader sees",
+    ),
+    blank_invocation(
+        "KHASH_INIT",
+        "khash's hash-table generator; a header's worth of definitions",
+    ),
+    blank_invocation(
+        "FOREACH_FSCK_MSG_ID",
+        "an X-macro list expanded inside an enum body",
+    ),
+    blank_invocation(
+        "DECLARE_PROC_ADDR",
+        "win32 dynamic-symbol declaration macro",
+    ),
+    blank_invocation("libc_hidden_def", "a glibc visibility annotation"),
+    blank_invocation("strong_alias", "a glibc alias annotation"),
+    blank_invocation(
+        "SHA1_STORE_STATE",
+        "sha1dc's unrolled statement macro; no semicolon follows",
+    ),
+    blank_invocation(
+        "SHA1_RECOMPRESS",
+        "sha1dc's unrolled statement macro; no semicolon follows",
+    ),
+    blank_invocation(
+        "FORMAT_PRESERVING",
+        "git's gettext format attribute; declarator position",
+    ),
+    // -- macros taking a type where the grammar expects an expression.
+    type_arg_zero(
+        "hashmap_clear_and_free",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "hashmap_partial_clear_and_free",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "hashmap_iter_first_entry",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "hashmap_get_entry_from_hash",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "hashmap_get_entry",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "list_first_entry",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "list_last_entry",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "container_of_or_null",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero(
+        "container_of",
+        "takes a type argument in expression position",
+    ),
+    type_arg_zero("list_entry", "takes a type argument in expression position"),
+    zero_arg(
+        "va_arg",
+        1,
+        "its second argument is a type by definition; position is certain",
+    ),
+    zero_arg(
+        "maximum_unsigned_value_of_type",
+        0,
+        "its only argument is a type by definition; position is certain",
+    ),
+    // -- win32 SAL annotations and one macro-pasted string pair.
+    blank("_In_opt_", "a win32 SAL parameter annotation"),
+    blank("_In_", "a win32 SAL parameter annotation"),
+    blank("_Reserved_", "a win32 SAL parameter annotation"),
+    blank_between(
+        "DISPLAY_PREFIX",
+        Some("ANSI_PREFIX"),
+        None,
+        "two macro string constants juxtaposed; one suffices to parse",
+    ),
+    // -- heads measured on curl and redis, the two calibration corpora.
+    //
+    // The rule *kinds* above covered every failure class on both; only these
+    // names were new. That is the pattern to expect: onboarding a corpus is a
+    // matter of heads, not of mechanisms.
+    blank(
+        "UNITTEST_BEGIN_SIMPLE",
+        "curl's unit-test opener, used bare with no arguments",
+    ),
+    blank_invocation(
+        "UNITTEST_BEGIN",
+        "curl's unit-test opener; a block header in disguise",
+    ),
+    blank("UNITTEST_END_SIMPLE", "curl's unit-test closer"),
+    blank_invocation("UNITTEST_END", "curl's unit-test closer"),
+    blank("UNITTEST_STOP", "curl's unit-test closer"),
+    blank(
+        "JEMALLOC_ALWAYS_INLINE",
+        "jemalloc's attribute macro before a return type",
+    ),
+    blank(
+        "JEMALLOC_NOINLINE",
+        "jemalloc's attribute macro before a return type",
+    ),
+    blank("JEMALLOC_EXPORT", "jemalloc's visibility macro"),
+    blank("TEST_END", "jemalloc's unit-test closer"),
+    blank_invocation("TEST_BEGIN", "jemalloc's unit-test opener"),
+];
+
 /// The rewrites that apply to a language, if any.
 fn table(language: &str) -> &'static [Rewrite] {
     match language {
+        "c" => C_REWRITES,
         "python" => PYTHON_REWRITES,
         "rust" => RUST_REWRITES,
         "zig" => ZIG_REWRITES,
@@ -262,6 +594,10 @@ pub fn neutralize(language: impl AsRef<str>, source: &[u8]) -> Option<Rewritten>
                 leading,
             } => blank_all(&mut output, keyword, after, before, leading),
             Rule::TypeConditional => collapse_type_conditionals(&mut output),
+            Rule::CallToIf { keyword } => call_to_if_all(&mut output, keyword),
+            Rule::BlankInvocation { keyword } => blank_invocation_all(&mut output, keyword),
+            Rule::TypeArgZero { keyword } => type_arg_zero_all(&mut output, keyword),
+            Rule::ZeroArg { keyword, index } => zero_arg_all(&mut output, keyword, index),
         };
         if applied {
             reasons.push(rewrite.reason);
@@ -304,10 +640,272 @@ fn blank_all(
         {
             continue;
         }
+        // A corpus can define a macro of the same name (`#define UNUSED(x)
+        // (void)(x)` — redis does): blanking the name out of its own
+        // definition guarantees the retry fails. Skipped on directive lines
+        // for every language; none of them writes a rewrite target there.
+        if on_a_preproc_line(text, start) {
+            continue;
+        }
         text.replace_range(start..end, &" ".repeat(keyword.len()));
         blanked = true;
     }
     blanked
+}
+
+/// Rewrite every statement-position `keyword(..)` to `if(..)`, in place.
+///
+/// Statement position is judged the soft-keyword way: the head must open its
+/// line. Every measured use does (an iterator macro is a statement, and C
+/// indents statements), and the restriction is what keeps the macro's own
+/// `#define` line untouched — there the head follows `#define `, not
+/// indentation.
+fn call_to_if_all(text: &mut String, keyword: &str) -> bool {
+    debug_assert!(keyword.len() >= "if".len());
+    let mut rewritten = false;
+    let mut from = 0;
+    while let Some(offset) = text[from..].find(keyword) {
+        let start = from + offset;
+        let end = start + keyword.len();
+        from = end;
+        if !is_word_boundary(text, start, end) || !opens_a_line(text, start) {
+            continue;
+        }
+        // The parenthesis must follow on the same line; only spacing between.
+        if !text[end..].trim_start_matches([' ', '\t']).starts_with('(') {
+            continue;
+        }
+        let pad = keyword.len() - "if".len();
+        text.replace_range(start..end, &format!("{}if", " ".repeat(pad)));
+        rewritten = true;
+    }
+    rewritten
+}
+
+/// Blank every `keyword(..)` invocation in full, in place.
+///
+/// The span runs from a preceding `static` (when one abuts) through the
+/// balanced close parenthesis and a trailing `;` (when one abuts). Newlines
+/// inside the span stay, so every later line keeps its number; every other
+/// character becomes the spaces its width requires.
+fn blank_invocation_all(text: &mut String, keyword: &str) -> bool {
+    let mut rewritten = false;
+    let mut from = 0;
+    while let Some(offset) = text[from..].find(keyword) {
+        let head = from + offset;
+        let head_end = head + keyword.len();
+        from = head_end;
+        if !is_word_boundary(text, head, head_end) || on_a_preproc_line(text, head) {
+            continue;
+        }
+        let after_head = &text[head_end..];
+        let spaces = after_head.len() - after_head.trim_start_matches([' ', '\t']).len();
+        let open = head_end + spaces;
+        if !text[open..].starts_with('(') {
+            continue;
+        }
+        let Some(close) = balanced(text, open) else {
+            continue;
+        };
+        // A `static` immediately before belongs to the declaration the macro
+        // would have generated; left behind it declares nothing and fails.
+        let mut start = head;
+        let preceding = text[..head].trim_end_matches([' ', '\t']);
+        if preceding.ends_with("static") {
+            let candidate = preceding.len() - "static".len();
+            if is_word_boundary(text, candidate, preceding.len()) {
+                start = candidate;
+            }
+        }
+        let mut end = close;
+        let trailing = &text[close..];
+        let gap = trailing.len() - trailing.trim_start_matches([' ', '\t']).len();
+        if text[close + gap..].starts_with(';') {
+            end = close + gap + ';'.len_utf8();
+        }
+        let blanked: String = text[start..end]
+            .chars()
+            .map(|character| {
+                if character == '\n' || character == '\r' {
+                    character.to_string()
+                } else {
+                    " ".repeat(character.len_utf8())
+                }
+            })
+            .collect();
+        text.replace_range(start..end, &blanked);
+        rewritten = true;
+        from = end;
+    }
+    rewritten
+}
+
+/// In every `keyword(..)`, overwrite each type-name argument with `0`, padded.
+///
+/// An argument is a type name when it reads as `struct tag`, `union tag`, or
+/// `enum tag`, optionally `const`-qualified, optionally pointed to. `0` is the
+/// shortest expression there is, and the argument's remaining width becomes
+/// spaces, so nothing moves.
+fn type_arg_zero_all(text: &mut String, keyword: &str) -> bool {
+    let mut rewritten = false;
+    let mut from = 0;
+    while let Some(offset) = text[from..].find(keyword) {
+        let head = from + offset;
+        let head_end = head + keyword.len();
+        from = head_end;
+        if !is_word_boundary(text, head, head_end) || on_a_preproc_line(text, head) {
+            continue;
+        }
+        let after_head = &text[head_end..];
+        let spaces = after_head.len() - after_head.trim_start_matches([' ', '\t']).len();
+        let open = head_end + spaces;
+        if !text[open..].starts_with('(') {
+            continue;
+        }
+        let Some(close) = balanced(text, open) else {
+            continue;
+        };
+        for (argument_start, argument_end) in argument_spans(text, open, close) {
+            if !names_a_type(text[argument_start..argument_end].trim()) {
+                continue;
+            }
+            let replacement: String = text[argument_start..argument_end]
+                .char_indices()
+                .map(|(at, character)| {
+                    if at == 0 {
+                        "0".to_string()
+                    } else if character == '\n' || character == '\r' {
+                        character.to_string()
+                    } else {
+                        " ".repeat(character.len_utf8())
+                    }
+                })
+                .collect();
+            text.replace_range(argument_start..argument_end, &replacement);
+            rewritten = true;
+        }
+        from = close;
+    }
+    rewritten
+}
+
+/// In every `keyword(..)`, overwrite the argument at `index` with `0`, padded.
+fn zero_arg_all(text: &mut String, keyword: &str, index: usize) -> bool {
+    let mut rewritten = false;
+    let mut from = 0;
+    while let Some(offset) = text[from..].find(keyword) {
+        let head = from + offset;
+        let head_end = head + keyword.len();
+        from = head_end;
+        if !is_word_boundary(text, head, head_end) || on_a_preproc_line(text, head) {
+            continue;
+        }
+        let after_head = &text[head_end..];
+        let spaces = after_head.len() - after_head.trim_start_matches([' ', '\t']).len();
+        let open = head_end + spaces;
+        if !text[open..].starts_with('(') {
+            continue;
+        }
+        let Some(close) = balanced(text, open) else {
+            continue;
+        };
+        let spans = argument_spans(text, open, close);
+        let Some(&(argument_start, argument_end)) = spans.get(index) else {
+            continue;
+        };
+        // Already a lone `0` (a second pass, or source that was cheap to begin
+        // with): nothing to change, and claiming a rewrite would be a lie.
+        if text[argument_start..argument_end].trim() == "0" {
+            continue;
+        }
+        let replacement: String = text[argument_start..argument_end]
+            .char_indices()
+            .map(|(at, character)| {
+                if at == 0 {
+                    "0".to_string()
+                } else if character == '\n' || character == '\r' {
+                    character.to_string()
+                } else {
+                    " ".repeat(character.len_utf8())
+                }
+            })
+            .collect();
+        text.replace_range(argument_start..argument_end, &replacement);
+        rewritten = true;
+        from = close;
+    }
+    rewritten
+}
+
+/// The comma-separated argument spans between `open`'s `(` and `close`,
+/// trimmed of leading whitespace so a replacement can start at a character.
+fn argument_spans(text: &str, open: usize, close: usize) -> Vec<(usize, usize)> {
+    let inner_start = open + '('.len_utf8();
+    let inner_end = close - ')'.len_utf8();
+    let mut spans = Vec::new();
+    let mut depth = 0usize;
+    let mut argument_start = inner_start;
+    for (offset, byte) in text.as_bytes()[inner_start..inner_end].iter().enumerate() {
+        let at = inner_start + offset;
+        match byte {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => depth = depth.saturating_sub(1),
+            b',' if depth == 0 => {
+                spans.push((argument_start, at));
+                argument_start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    spans.push((argument_start, inner_end));
+    spans
+        .into_iter()
+        .map(|(start, end)| {
+            let trimmed = start + (text[start..end].len() - text[start..end].trim_start().len());
+            (trimmed, end)
+        })
+        .filter(|(start, end)| start < end)
+        .collect()
+}
+
+/// Whether a trimmed argument reads as a C type name: `struct tag`,
+/// `union tag`, or `enum tag`, optionally `const`-qualified before, optionally
+/// starred after.
+fn names_a_type(argument: &str) -> bool {
+    let argument = argument.strip_prefix("const").unwrap_or(argument).trim();
+    let Some(rest) = ["struct", "union", "enum"]
+        .iter()
+        .find_map(|introducer| argument.strip_prefix(introducer))
+    else {
+        return false;
+    };
+    // The introducer must be a word of its own: `structural` names no struct.
+    let Some(first) = rest.chars().next() else {
+        return false;
+    };
+    if !first.is_whitespace() {
+        return false;
+    }
+    let tag = rest.trim();
+    !tag.is_empty()
+        && tag.chars().all(|character| {
+            character.is_alphanumeric() || character == '_' || character == '*' || character == ' '
+        })
+}
+
+/// Whether the occurrence at `at` sits on a preprocessor line.
+///
+/// A macro's own `#define` mentions the same head the sites do; blanking the
+/// name out of a `#define` leaves a directive with nothing to define, which
+/// turns a readable line into a failure. Sites on continuation lines are not
+/// caught — those lines do not open with `#` — and do not need to be: inside
+/// a directive's body the grammar reads token soup and no rewrite is needed.
+fn on_a_preproc_line(text: &str, at: usize) -> bool {
+    text[..at]
+        .rsplit_once('\n')
+        .map_or(&text[..at], |(_, line)| line)
+        .trim_start()
+        .starts_with('#')
 }
 
 /// Whether only indentation separates the occurrence at `at` from the start of
@@ -846,5 +1444,90 @@ mod tests {
         // `:` before an `if` is a type annotation in Zig and never in Rust, so
         // the two tables must not be shared.
         assert!(neutralize("rust", b"let x: u32 = if (a) { 1 } else { 2 };").is_none());
+    }
+
+    fn c(source: &str) -> Option<Rewritten> {
+        neutralize("c", source.as_bytes())
+    }
+
+    #[test]
+    fn c_attribute_macros_blank_in_place() {
+        let rewritten = c("int f(UNUSED int x);\n").expect("applies");
+        assert_eq!(rewritten.source, b"int f(       int x);\n");
+        assert!(!rewritten.narrowed);
+    }
+
+    #[test]
+    fn c_iterator_macros_become_conditionals() {
+        let rewritten = c("\tfor_each_string_list_item(item, &list) {\n\t\tuse(item);\n\t}\n")
+            .expect("applies");
+        assert_eq!(
+            rewritten.source,
+            b"\t                       if(item, &list) {\n\t\tuse(item);\n\t}\n"
+        );
+        assert!(rewritten.narrowed);
+    }
+
+    #[test]
+    fn c_iterator_macro_definitions_are_left_alone() {
+        // The `#define` line mentions the same head every site does; the site
+        // rewrites, the definition must not.
+        assert!(c("#define for_each_string_list_item(i, l) for (...)\n").is_none());
+    }
+
+    /// Every byte space or newline, length unchanged, newlines where they were.
+    fn blanked_in_place(original: &str, rewritten: &[u8]) {
+        assert_eq!(rewritten.len(), original.len());
+        for (index, byte) in rewritten.iter().enumerate() {
+            match original.as_bytes()[index] {
+                b'\n' => assert_eq!(*byte, b'\n'),
+                _ => assert_eq!(*byte, b' '),
+            }
+        }
+    }
+
+    #[test]
+    fn c_declaration_macros_blank_in_full() {
+        let source = "define_commit_slab(indegree, int);\n";
+        blanked_in_place(source, &c(source).expect("applies").source);
+        // `static` in front belongs to the generated declaration and goes too.
+        let with_static = "static GIT_PATH_FUNC(git_path_x, \"X\")\n";
+        blanked_in_place(with_static, &c(with_static).expect("applies").source);
+    }
+
+    #[test]
+    fn c_multi_line_invocations_keep_their_newlines() {
+        let source = "KHASH_INIT(str, const char *,\n\tvoid *, 1, h, eq)\n";
+        blanked_in_place(source, &c(source).expect("applies").source);
+    }
+
+    #[test]
+    fn c_type_arguments_become_zero() {
+        let rewritten = c("e = container_of(ptr, const struct entry, member);\n").expect("applies");
+        assert_eq!(
+            rewritten.source,
+            b"e = container_of(ptr, 0                 , member);\n"
+        );
+        // An argument that is already an expression is left alone.
+        assert!(c("e = container_of(ptr, entry, member);\n").is_none());
+    }
+
+    #[test]
+    fn c_va_arg_zeroes_by_position_not_spelling() {
+        let rewritten = c("s = va_arg(ap, const char *);\n").expect("applies");
+        assert_eq!(rewritten.source, b"s = va_arg(ap, 0           );\n");
+    }
+
+    #[test]
+    fn c_macro_definitions_of_blanked_names_are_left_alone() {
+        // redis defines its own `UNUSED(x)`; the name must survive in its own
+        // `#define` or the file trades one failure for another.
+        assert!(c("#define UNUSED(x) (void)(x)\n").is_none());
+    }
+
+    #[test]
+    fn ordinary_c_is_left_alone() {
+        assert!(c("int main(void) { return 0; }\n").is_none());
+        assert!(c("struct entry { int x; };\n").is_none());
     }
 }
