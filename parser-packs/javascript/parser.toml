@@ -41,3 +41,27 @@ unit-node-kinds = [
     "generator_function",
     "method_definition",
 ]
+
+[error-handling]
+# Any JavaScript callable can throw, so not catching is always available and no
+# signature declines it -- the same reading the typescript pack takes, reached
+# more directly: TypeScript at least annotates a return type, and JavaScript
+# annotates nothing at all.
+propagation = "unchecked"
+# Empty where the typescript pack names `Promise`, and that is the one real
+# difference between the two. TypeScript keeps it for the one thing a signature
+# does say; a JavaScript signature says nothing, so there is no return type for
+# a name to match and declaring one would describe a capture that cannot occur.
+# Under `unchecked` neither spelling changes a verdict.
+fallible-types = []
+optional-types = []
+non-failure-results = []
+non-failure-results-forms = []
+# Every form named in `discards.scm` names the failure directly, so none is
+# ambiguous the way `.unwrap_or_default()` is in Rust.
+ambiguous-forms = []
+
+# `[tests]` is deliberately absent, for the reason the typescript pack gives:
+# tests are marked by filename convention or by a `describe`/`it` call, not by
+# an annotation on the item, so there is nothing for a marker substring to
+# match.
