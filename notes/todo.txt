@@ -64,13 +64,26 @@ copied manifest block.
     drift in the PATTERNS is the residual risk — the invariant catches a missing
     query, not a stale one. Revisit if a third grammar for one language appears.
 
-[ ] JavaScript is the same gap and is NOT fixed here. Measured: `discards.scm`
-    copies unchanged, but `callables.scm` does NOT — `tree-sitter-javascript`
-    has no `type_annotation`, and the pack load fails loudly rather than
-    matching nothing, which is that check working. It needs a JS variant with
-    the return-type patterns dropped, plus the same `[error-handling]` block.
+[x] JavaScript was the same gap   -- DONE 08-05, and it needed two edits, not a
+    copy. `discards.scm` copies unchanged: `catch_clause`, `void` and the
+    `.catch(..)` member call are plain ECMAScript and no form reads an
+    annotation. `callables.scm` does not, twice over, and BOTH failures are
+    loud rather than silent — the pack load rejects a query naming a kind the
+    grammar lacks, which is `every_checked_in_pack_declares_only_kinds_its_
+    grammar_has` doing its job:
+      - `type_annotation` does not exist, so every `@callable.with-return`
+        pattern goes. That is not a loss: JavaScript declares nothing about
+        failure in a signature, which is what `propagation = "unchecked"`
+        already says, and `fallible-types` is therefore EMPTY where the
+        typescript pack names `Promise`. Under `unchecked` neither changes a
+        verdict.
+      - `class_declaration` names an `identifier` here and a `type_identifier`
+        there. Confirmed by putting the TypeScript spelling back and watching
+        the pack load fail, rather than assumed.
     Note the two packs are different LANGUAGES (`javascript` vs `typescript`),
-    so `DivergentPacks` does not and should not fire on the pair.
+    so `DivergentPacks` does not and should not fire on the pair. Nothing
+    checks that they stay level, deliberately: they are not the same language
+    and the one real difference above is a difference in the languages.
 
 ## A file no pack could read is now reported, not skipped
 

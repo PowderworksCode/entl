@@ -134,6 +134,90 @@ fn a_second_grammar_that_describes_less_is_reported() {
     );
 }
 
+/// JavaScript describes the same discard forms as TypeScript, and they fire.
+///
+/// A query that compiles is not a query attached to anything: a `#eq?` placed
+/// after a pattern's closing paren compiles cleanly and silently becomes its own
+/// pattern matching every node. So this runs the queries rather than loading
+/// them, and asserts the negative cases too — every form here turns on the
+/// ABSENCE of a binding, which is the one thing a query cannot state directly.
+#[test]
+fn the_javascript_pack_recognizes_its_discard_forms() {
+    let discovery = ParserCatalog::discover([parser_packs()]);
+    assert!(discovery.errors.is_empty(), "{:?}", discovery.errors);
+    let pack = discovery
+        .catalog
+        .resolve("javascript", PathBuf::from("src/read.js").as_path())
+        .unwrap();
+    let parser = ParserRuntime::new().unwrap().load(pack.clone()).unwrap();
+
+    let source = "\
+export async function discards(path) {
+  try { return await load(path); } catch { }
+  void load(path);
+  load(path).catch(() => null);
+}
+export async function handles(path) {
+  try { return await load(path); } catch (error) { report(error); }
+  return load(path).catch((error) => report(error));
+}
+";
+    let file = parser
+        .parse("src/read.js", Arc::<[u8]>::from(source.as_bytes()))
+        .unwrap();
+    assert!(!file.tree.root_node().has_error());
+
+    // `{capture}.bind` is the name `infact-errors` tests for, so the test asks
+    // the question the consumer asks rather than a convenient approximation.
+    let found = parser.matches("discards", &file).unwrap();
+    for form in [
+        "discard.err-arm",
+        "discard.let-underscore",
+        "discard.ok-discard",
+    ] {
+        let bound = format!("{form}.bind");
+        let discarded = found
+            .iter()
+            .filter(|found| found.has(form) && !found.has(&bound))
+            .count();
+        assert_eq!(
+            discarded, 1,
+            "{form} discarded {discarded} times: {found:?}"
+        );
+    }
+    // `catch (error)` and `.catch((error) => ..)` still see the cause. They
+    // match the same patterns and are told apart only by the binding capture
+    // being present, so counting matches alone would pass while reporting
+    // handled code as discarded.
+    let bound = found
+        .iter()
+        .filter(|found| found.has("discard.err-arm.bind") || found.has("discard.ok-discard.bind"))
+        .count();
+    assert_eq!(bound, 2, "the two handled forms must bind: {found:?}");
+
+    // The scaffolding has to reach a method on a class, or a discard inside one
+    // is attributed to nothing. `class_declaration` names an `identifier` here
+    // where TypeScript names a `type_identifier`, and getting that wrong fails
+    // the pack load rather than losing the container quietly.
+    let file = parser
+        .parse(
+            "src/read.js",
+            Arc::<[u8]>::from(
+                "export class Reader { async read(p) { return load(p); } }".as_bytes(),
+            ),
+        )
+        .unwrap();
+    let scaffold = parser.matches("callables", &file).unwrap();
+    assert!(
+        scaffold.iter().any(|found| found.has("impl.type")),
+        "the class must be captured as the container: {scaffold:?}"
+    );
+    assert!(
+        scaffold.iter().any(|found| found.has("callable.name")),
+        "the method must be captured as a callable: {scaffold:?}"
+    );
+}
+
 #[test]
 fn parses_javascript_typescript_and_tsx() {
     let packs = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
