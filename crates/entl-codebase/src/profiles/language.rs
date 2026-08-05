@@ -18,6 +18,30 @@ pub enum LanguageRole {
     Build,
 }
 
+impl LanguageRole {
+    /// Whether a consumer that parses source should expect a parser pack for
+    /// this role, and so should hear about one being missing.
+    ///
+    /// Reporting a missing pack exists so nothing calls a repository clean when
+    /// a whole language went unread. That is worth saying for Go or C++, which
+    /// are real gaps in coverage. It is not worth saying for a README, a
+    /// `.gitignore`-adjacent YAML file, or the `straitjacket.toml` a run was
+    /// configured by: those are not the source under analysis, and reporting
+    /// them buries the gaps that matter.
+    ///
+    /// The pack format draws the same line. A manifest declares
+    /// `unit-node-kinds` (`function_item`, `impl_item`), `error-handling` with
+    /// its fallible and optional types, and `tests` markers, and ships queries
+    /// for callables and behaviors. None of that has a meaning in TOML. A pack
+    /// for a data language could only be a stub that exists to silence this.
+    ///
+    /// Markup and stylesheets sit outside for now because no pack covers them.
+    /// Vendoring one is the moment to move it, not before.
+    pub const fn expects_parser_pack(self) -> bool {
+        matches!(self, Self::Programming)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommentSyntax {
     pub line: &'static [&'static str],

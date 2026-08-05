@@ -95,6 +95,40 @@ fn a_file_that_is_not_source_is_not_reported() {
     );
 }
 
+/// A recognized language that is not source is not a finding either.
+///
+/// The previous test covers a file nothing claims. This covers the harder
+/// case: TOML, YAML, and Markdown are all registered languages, so they are
+/// recognized and then not read, which is literally the shape the rule fires
+/// on. They are still not the source under analysis, and only six of the
+/// twenty-nine registered languages have a pack — so reporting every one of
+/// them meant a repository with a README and a config file produced three
+/// findings that named nothing anybody would parse, burying the Go and C++
+/// gaps this rule exists to surface.
+///
+/// Straitjacket found this the expensive way: `exact-clones` reported
+/// `analysis-incomplete` against the `straitjacket.toml` that configured the
+/// run.
+#[test]
+fn a_recognized_language_that_is_not_source_is_not_reported() {
+    let catalog = ParserCatalog::discover([packs(&["rust"])]);
+    let root = repository(&[
+        ("kept.rs", "fn main() {}\n"),
+        ("README.md", "# hello\n"),
+        ("config.toml", "[table]\nkey = 1\n"),
+        ("conf.yaml", "key: 1\n"),
+    ]);
+
+    let parsed = parse_repository(&root, &catalog.catalog).unwrap();
+
+    assert_eq!(parsed.files.len(), 1, "the Rust file is still read");
+    assert!(
+        parsed.diagnostics.is_empty(),
+        "documentation and data are not source that went unread: {:?}",
+        parsed.diagnostics
+    );
+}
+
 /// With the pack present the file is read, and there is nothing to report.
 ///
 /// This is the half that keeps the rule from being satisfied by reporting
