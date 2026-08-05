@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -168,6 +168,29 @@ impl ParserCatalog {
                         });
                         continue;
                     }
+                    // A second grammar for one language must describe that
+                    // language the same way. Where it does not, the same code
+                    // gets a different answer depending on which file extension
+                    // it was written under, and nothing downstream can see it:
+                    // an analyzer that needs a query a pack does not ship skips
+                    // the file in silence, because a pack describing no forms
+                    // for its language is a real and different thing from a
+                    // language having none.
+                    //
+                    // Unlike an overlap this does not make resolution
+                    // ambiguous, so the pack is kept and the divergence is
+                    // reported. Dropping it would lose the grammar outright for
+                    // anyone who read past the errors.
+                    for first in packs.iter() {
+                        if let Some(difference) = describes_differently(first, &pack) {
+                            discovery.errors.push(Error::DivergentPacks {
+                                language: language.clone(),
+                                first: first.manifest().id.clone(),
+                                second: pack.manifest().id.clone(),
+                                difference,
+                            });
+                        }
+                    }
                     packs.push(Arc::new(pack));
                     packs.sort_by_key(|pack| pack.manifest().id.clone());
                 }
@@ -193,6 +216,40 @@ impl ParserCatalog {
     pub fn is_empty(&self) -> bool {
         self.packs.is_empty()
     }
+}
+
+/// How two packs for one language disagree about what that language has, if
+/// they do.
+///
+/// It compares what each pack CLAIMS TO DESCRIBE, not how it describes it. Two
+/// grammars for one language legitimately need different patterns for the same
+/// construct, so the query TEXT is free to differ; the set of query names is
+/// not, because a missing name is a capability that silently does not run. The
+/// error-handling manifest is not data about a grammar at all — it is a fact
+/// about the language's standard library — so two packs for one language that
+/// disagree about it disagree about the language itself.
+fn describes_differently(first: &ParserPack, second: &ParserPack) -> Option<String> {
+    let first_queries: BTreeSet<&str> = first.queries().keys().map(String::as_str).collect();
+    let second_queries: BTreeSet<&str> = second.queries().keys().map(String::as_str).collect();
+    if first_queries != second_queries {
+        let only_first = first_queries.difference(&second_queries).copied();
+        let only_second = second_queries.difference(&first_queries).copied();
+        let mut missing = Vec::new();
+        for (pack, names) in [
+            (second.manifest().id.as_str(), only_first),
+            (first.manifest().id.as_str(), only_second),
+        ] {
+            let names = names.collect::<Vec<_>>();
+            if !names.is_empty() {
+                missing.push(format!("{pack:?} ships no {}", names.join(", ")));
+            }
+        }
+        return Some(missing.join("; "));
+    }
+    if first.manifest().error_handling != second.manifest().error_handling {
+        return Some("they declare different [error-handling]".to_owned());
+    }
+    None
 }
 
 fn selectors_overlap(first: &ParserPack, second: &ParserPack) -> bool {

@@ -48,6 +48,17 @@ pub enum Error {
         second: String,
     },
 
+    #[error(
+        "parser packs {first:?} and {second:?} both read language {language:?} but describe it \
+         differently: {difference}"
+    )]
+    DivergentPacks {
+        language: String,
+        first: String,
+        second: String,
+        difference: String,
+    },
+
     #[error("could not initialize the Tree-sitter Wasm runtime: {0}")]
     Runtime(String),
 

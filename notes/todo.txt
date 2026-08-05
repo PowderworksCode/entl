@@ -1,5 +1,77 @@
 entl — todo
 
+## `.tsx` was getting less than `.ts` from the same bytes, and silently
+
+Fixed 08-05. `tsx` is NOT a language. `parser-packs/tsx/parser.toml` declares
+`language = "typescript"` with `grammar-name = "tsx"`, and `entl-codebase` has
+one typescript profile covering `ts, tsx, mts, cts` and no `tsx` id at all. So
+the two packs are ONE LANGUAGE READ BY TWO GRAMMARS — and only one of them
+shipped queries or an `[error-handling]` block.
+
+Measured on byte-identical files before anything was changed:
+
+    b.ts     3 error-discard findings
+    c.tsx    0
+
+`infact-errors` runs on a file only when its pack ships `callables` and
+`discards`, and skips it in silence otherwise. That is deliberate and its doc
+comment argues it well: a pack describing no discard forms is a different thing
+from a language having none, so reporting the file as clean would be a lie. The
+reasoning is right for a LANGUAGE and wrong for a GRAMMAR. The language was
+described. The file was read by the pack that could not look.
+
+### Copying the queries across is only half of it, and the other half is quieter
+
+With `queries/*.scm` copied and the manifest left alone, the findings appear and
+the VERDICT is wrong:
+
+    b.ts   ... readOne is fallible    and discards `catch { }`
+    c.tsx  ... readOne is infallible  and discards `catch { }`
+
+`propagation = "unchecked"` is what says any TypeScript callable can throw. It
+lived in one pack, so containment came out the other way under the other
+extension. Same code, two answers, and the finding still renders — which is
+worse than the missing findings were, because it looks like an answer. This is
+the erasure class this file keeps recording, reached from a new direction: a
+distinction lost upstream, invisible where it lands.
+
+### The guard, and why it is at discovery rather than in a test
+
+`ParserCatalog::discover` already refused two packs for one language that claim
+the same file (`Error::OverlappingPacks`). It now also reports two packs for one
+language that DESCRIBE it differently (`Error::DivergentPacks`) — a differing
+set of query NAMES, or a differing `[error-handling]`. Every consumer in the
+fleet treats `discovery.errors` as fatal, so this is loud everywhere.
+
+  - It compares what a pack CLAIMS TO DESCRIBE, not how. Two grammars for one
+    language legitimately need different patterns for one construct, so query
+    TEXT is free to differ. A missing query NAME is a capability that silently
+    does not run, and `[error-handling]` is not data about a grammar at all —
+    it is a fact about the language's standard library, so two packs for one
+    language disagreeing about it disagree about the language.
+  - Unlike an overlap it does NOT drop the pack. A divergence makes no
+    resolution ambiguous, and dropping would lose `.tsx` outright for anyone who
+    read past the errors.
+  - `a_second_grammar_that_describes_less_is_reported` was CONFIRMED to fail
+    against the check stubbed out, rather than assumed to.
+
+VERIFIED: the typescript queries compile against the tsx grammar UNCHANGED. JSX
+adds node kinds; it removes none. So the whole fix is two copied files and a
+copied manifest block.
+
+[ ] The two query files are COPIES. A pack manifest has no way to name another
+    pack's queries and inventing one for a single consumer is not worth it, so
+    drift in the PATTERNS is the residual risk — the invariant catches a missing
+    query, not a stale one. Revisit if a third grammar for one language appears.
+
+[ ] JavaScript is the same gap and is NOT fixed here. Measured: `discards.scm`
+    copies unchanged, but `callables.scm` does NOT — `tree-sitter-javascript`
+    has no `type_annotation`, and the pack load fails loudly rather than
+    matching nothing, which is that check working. It needs a JS variant with
+    the return-type patterns dropped, plus the same `[error-handling]` block.
+    Note the two packs are different LANGUAGES (`javascript` vs `typescript`),
+    so `DivergentPacks` does not and should not fire on the pair.
+
 ## A file no pack could read is now reported, not skipped
 
 Fixed 08-04. `parse_repository` had one silent way out of its loop: a file
@@ -103,6 +175,33 @@ that turns a file that PARSES into one that does not, and CPython's
     around a fallible RETURN TYPE, and Python spells failure with exceptions.
     Inventing values for it before writing Python's discard forms would be
     guessing. They land with `queries/discards.scm`.
+
+    CORRECTED 08-05 — THE STATED REASON NO LONGER HOLDS. `ErrorHandlingManifest`
+    gained `propagation` in 316b49d on 08-03, the same day this pack landed
+    (6786685), and `Propagation::Unchecked` is precisely the field that is NOT
+    shaped around a return type. Its own doc comment describes Python as exactly
+    as well as it describes TypeScript: "any callable can throw, so not catching
+    is always available and no signature declines it". So
+
+        [error-handling]
+        propagation = "unchecked"
+        fallible-types = []          # nothing in a signature declares failure
+        optional-types = []
+        non-failure-results = []
+        non-failure-results-forms = []
+        ambiguous-forms = []
+
+    is a complete and honest Python manifest today. The remaining work is
+    `queries/discards.scm` — `except: pass`, a bare `except`,
+    `contextlib.suppress`, and whatever a corpus says is actually written — not
+    unblocking the manifest. Two notes written a day apart, and the second did
+    not know it had answered the first; corrected rather than deleted so a stale
+    copy elsewhere can be recognised.
+
+    `[tests]` is a DIFFERENT question and is still open for the same reason it
+    is open for TypeScript: `TestManifest` matches marker substrings against
+    captured annotation text, and Python marks tests by filename convention and
+    by `unittest.TestCase` inheritance, not by an annotation on the item.
 
 ## A tokenization kind the grammar never had was dead data, and zig had four
 
