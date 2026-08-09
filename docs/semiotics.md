@@ -20,36 +20,48 @@ rather than existing.
 | | question | owns |
 |---|---|---|
 | **entl** | where did this code come from, and what is in it? | walk and ignore semantics, manifests, packages, workspaces, projects, ecosystems, tool and artifact profiles, forge facts, lazy reads |
-| **treebank** | what does the grammar say? | corpora, ranking, fetching, grammar patches, gap ledgers, `parser.toml`, and the parse runtime |
-| **semiotics** | what does this language mean, and what does this program mean? | language identity, detection, profiles, facets, conventions, verbosity, the observation vocabulary, the observers, and the anchoring of observations to parse trees |
+| **treebank** | can a grammar read this language yet? | corpora, ranking, fetching, sweeps, oracles, grammar patches, gap ledgers — **automation that produces parser packs** |
+| **semiotics** | what does this language mean, and what does this program mean? | language identity, detection, profiles, facets, conventions, verbosity, the observation vocabulary, the parse runtime, the observers, anchoring, and the pack schemas |
 
-The dependency direction follows from that, and it is the opposite of what a
-first reading suggests. Semiotics is not a layer on top of acquisition. It is
-underneath everything, because language identity is what Entl's walk and
-treebank's packs are both written in terms of.
+treebank is a **pipeline, not a library.** Nothing links it. It ranks packages,
+fetches corpora, sweeps them against a grammar, adjudicates with an oracle,
+carries a patch series, and publishes a parser pack and a gap ledger. The pack
+is its product.
+
+That decides the two questions the split kept snagging on. **The parse runtime
+belongs to semiotics**, because running a pack is consuming one, and a consumer
+is not the producer. And **the interface between treebank and semiotics is data**
+— `parser.toml` and a `.wasm`, read from a directory at run time — not a crate.
+
+Which is only entl's own principle, that growth along the language axis must not
+mean a crate, applied one level up at the repository boundary.
 
 ```
-                        semiotics
+                          semiotics
               LanguageId · profiles · detection · conventions
               verbosity · Span · Provenance · Fidelity · Environment
-              Definition · Reference · CallEdge · TypeAt · Implements
-                    ↑                              ↑
-                  entl                         treebank
-        acquisition, inventory        grammars, packs, parse runtime,
-                    ↑                  corpora, gap ledgers
-                    │                              ↑
-                    └──────────┬───────────────────┘
+              Anchor · the five question kinds · parse runtime
+              observers · pack schemas
+                    ↑                           ↑
+                    │                           │
+                  entl                      treebank
+             acquisition,              automation only; writes packs,
+              inventory                links semiotics-c for its oracle
+                    ↑                           ┊
+                    │                           ┊ parser packs, as DATA
+                    └──────────┬────────────────┘
                                │
                     cowbird · infact · straitjacket
 ```
 
-**The `semiotics` crate depends on nothing else in the fleet.** That invariant is
-what makes the split worth doing, and it is stated about the root crate on
-purpose: `semiotics-observe` *does* depend on treebank, in order to anchor
-observations to parse trees. Because the crate on each side of that arrow is a
-different one, there is no cycle — treebank depends on the vocabulary, and the
-observation driver depends on treebank. A consumer asking "is this file Rust?"
-still links a data crate and no grammar.
+**Every code arrow points into semiotics.** treebank and semiotics exchange pack
+data, not types. entl depends on exactly one thing. There is no cycle at crate
+level or at repository level, which is the property the earlier drafts kept
+losing.
+
+The cost, stated plainly: **entl is not standalone.** It records what language a
+file is, and that vocabulary lives in semiotics. See *Why entl depends on
+semiotics* for the alternative and why it was not taken.
 
 ## Shape
 
@@ -59,13 +71,15 @@ still links a data crate and no grammar.
 semiotics/
   crates/
     semiotics/            identity, detection, profiles, facets, conventions,
-                          verbosity, and the observation vocabulary
+                          verbosity, the observation vocabulary, and the
+                          pack manifest schemas
+    semiotics-parse/      ← entl-tree-sitter: pack loading, parser runtime,
+                          dialect rewrites, and anchoring
     semiotics-observe/    the driver, and the observer.toml pack mechanism
     semiotics-store/      content-addressed blobs, Arrow sidecars
     semiotics-c/          libclang; the only tier-1 compiler observer
     semiotics-rust-mir/   rustc_private; excluded from the workspace
     semiotics-zig/        ← entl-zig-observe, intended to dissolve into pack data
-    semiotics-cli/
   observer-packs/
     typescript/           observer.toml + observe.mjs   ← providers/typescript
     zig-air/              observer.toml, drives a forked zig
@@ -100,23 +114,28 @@ and semiotics inherits it rather than reinventing it.
 ```
 layer 0   semiotics                 no fleet dependencies
              ↓
-layer 1   entl-codebase        treebank-parse       (both name languages)
-             ↓                       ↓
-layer 2   semiotics-store      semiotics-observe ──→ treebank-parse
-             ↓                                       (to anchor; see below)
-layer 3   semiotics-c   semiotics-rust-mir   observer-packs/*  (data)
-             ↓
-layer 4   entl-observe         semiotics-cli
-             ↓
+layer 1   semiotics-parse   semiotics-store   entl-codebase
+             ↓                                     ↓
+layer 2   semiotics-c   semiotics-rust-mir   semiotics-zig   entl-github
+             ↓                                     ↓
+layer 3   semiotics-observe                   entl-observe
+             ↓                                     ↓
 consumers cowbird   infact   treebank-cli ──→ semiotics-c (verdict-only)
+
+                  treebank-cli ┄┄ writes ┄┄→ parser-packs/  ┄┄ read by ┄┄→ semiotics-parse
 ```
 
-The `semiotics-observe → treebank-parse` arrow is the one that looks like a
-cycle and is not. treebank names languages, so it depends on the `semiotics`
-root crate. The observation driver anchors facts to parse trees, so it depends
-on treebank. Root semiotics depends on neither. Collapsing the root and the
-driver into one crate — considered under Open Questions — would create the
-cycle, which is now a reason not to.
+No arrow leaves semiotics. `semiotics-parse` reads a pack directory at run time
+and never links the thing that wrote it; `treebank-cli` links `semiotics` for
+`LanguageId` and `Fidelity` and `semiotics-c` for its oracle, and nothing links
+`treebank-cli`.
+
+`semiotics-cli` is deliberately absent. Observing a tree means walking it and
+resolving projects, which is entl's job, so a CLI that did the whole run would
+put an entl dependency inside the semiotics repository and reintroduce a cycle
+from the other side. The integration point is `entl-observe`, and consumers
+drive it — which is already how cowbird and infact consume `entl-codebase`. If a
+CLI is wanted later it belongs in **entl**, where the walk is.
 
 `treebank-cli` is the only arrow that skips the stack. It wants one bit, and
 routing it through the driver would make its 850,000-file sweep pay for
@@ -129,13 +148,13 @@ is what keeps semiotics ignorant that inventory exists.
 ### What a run is
 
 ```sh
-$ semiotics observe ~/src/bun --out .typebank
+$ entl observe ~/src/bun --out .typebank      # intended; see The layering
 ```
 
 1. **Entl** walks and inspects, producing projects, languages and packages.
 2. **`entl-observe`** turns that into `Vec<ObservationUnit>`, filling
-   `project_root` wherever `inspect` resolved one. This is the only line where
-   Entl and semiotics touch.
+   `project_root` wherever `inspect` resolved one. Entl's other contact with
+   semiotics is `LanguageId` during the walk, and nothing else.
 3. **`semiotics-observe`** groups units by `(language, project_root)`. The
    grouping *is* the tier decision: a group with a project root can run tier 2,
    one without it runs tier 1 or nothing.
@@ -143,6 +162,9 @@ $ semiotics observe ~/src/bun --out .typebank
 5. Observers run in parallel. Each returns a `SemanticObservations` carrying its
    own `Coverage` and `Environment`.
 6. **`semiotics-store`** canonicalizes, writes the blob, appends the index line.
+7. Optionally, **`semiotics-parse`** anchors each observation against the parser
+   pack for its language and writes an anchor blob beside it. This step is
+   re-runnable on its own whenever treebank publishes a new pack.
 
 ### What lands on disk
 
@@ -256,7 +278,7 @@ For each Entl crate, where it goes.
 | `entl-codebase` | **splits**: the language third → semiotics; walk, manifests, packages, ecosystems, tools stay in Entl |
 | `entl-github` | **stays in Entl**, unchanged |
 | `entl-semantics` | **merges into `semiotics`** as the observation vocabulary |
-| `entl-tree-sitter` | **→ treebank, entirely**; `repository.rs` deleted |
+| `entl-tree-sitter` | **→ `semiotics-parse`**, entirely; `repository.rs` deleted |
 | `entl-rust-mir` | **→ `semiotics-rust-mir`**, intact, still outside the workspace |
 | `entl-ts-observe` | **→ observer pack `typescript/`**; the crate dissolves |
 | `entl-zig-air` | **splits**: reader → observer pack `zig-air/`; `store.rs` → `semiotics-store` |
@@ -300,34 +322,41 @@ vocabulary of `semiotics` rather than as its own crate, because `LanguageId` and
 amendments, argued later: byte spans, `Fidelity` plus `Environment`, and stable
 entity ids.
 
-### `entl-tree-sitter` goes to treebank whole
+### `entl-tree-sitter` goes to semiotics whole
 
-*Changed from an earlier draft, which split it.* treebank is tree-sitter
-focused, so it should own grammars end to end — produce, publish, load, and run.
-One place then knows the ABI, the pack format, and the dialect gaps, instead of
-the producer knowing half and a consumer knowing the other half.
+*Reversed from an earlier draft, which sent it to treebank.* The reversal
+follows from treebank being a pipeline rather than a library: **running a pack
+is consuming one**, and the consumer is not the producer. Everything in this
+crate reads packs, so all of it becomes `semiotics-parse`.
 
-- `manifest.rs` — the `parser.toml` schema and digest verification. treebank
-  writes that file; this only reads it. A format belongs with its producer.
 - `catalog.rs`, `runtime.rs` — pack loading, query compilation, the parser
   runtime.
-- `dialect.rs` — 1,533 lines of per-language rewrite tables, which exist because
-  a grammar cannot read a construct. Grammar gaps are treebank's entire reason to
-  exist, and it already ledgers the ones it cannot close. Keeping the rewrite in a
-  different repository from the patch series was the duplication risk in the
-  earlier draft; this removes it.
+- `dialect.rs` — 1,533 lines of per-language rewrite tables, applied at parse
+  time when a grammar cannot read a construct. This is the one that looks like
+  treebank's. It is not: treebank's response to a gap is a patch or a ledger
+  entry, and a rewrite is what a *reader* does when it must parse anyway.
+  *Intended:* the rewrite table ships in the pack as data, so a gap and its
+  workaround are recorded together and treebank emits both.
+- `manifest.rs` — the `parser.toml` schema and digest verification. **Also
+  semiotics**, which reverses what an earlier draft argued.
+
+That last one deserves the correction spelled out. The earlier draft said a
+format belongs with its producer, so `parser.toml`'s schema should live in
+treebank. That is the right rule when the producer is upstream of the reader.
+Here the producer is *downstream*: treebank links semiotics for `LanguageId`
+and `Fidelity`, so treebank can write the format using semiotics' own type,
+while semiotics reads it without linking treebank. **The reader owns the format
+when the writer is downstream** — and the alternative would put a treebank
+dependency inside semiotics, which is the cycle this whole arrangement exists
+to avoid.
+
 - `repository.rs` — **deleted.** These 148 lines are `parse_repository(root,
   catalog)`, a convenience driver that calls `entl_codebase::walk()` and loops.
   They are replaced by the seam below.
 
-treebank depends on semiotics for `LanguageId` and reports `rewrites_narrowed`
-as semiotics' `Fidelity`. It does not depend on Entl.
-
-Keeping the parse runtime whole matters more under anchoring than it did
-without it. `semiotics-observe` resolves every observation against a parse tree,
-so it needs pack loading, the runtime, and the dialect rewrites in one place and
-from one owner. Had `entl-tree-sitter` been split across two repositories as an
-earlier draft proposed, the anchor would have had to reach into both.
+Anchoring then lands where it belongs without argument: `semiotics-parse` has
+the runtime, so resolving a span against a node is a local call rather than a
+repository boundary.
 
 ### The observers
 
@@ -360,10 +389,11 @@ should become treebank pack query data plus a small extractor. Not first.
 
 Both name languages, and that is the whole of it. `entl-codebase` calls
 `detect_language` during the walk and stores a `LanguageDetection` on each
-`FileEntry`. `treebank-parse` calls `language_profile(&manifest.language)` to
-reject a pack naming an unknown language, and `role.expects_parser_pack()` to
-decide whether a missing pack is a diagnostic or silence. Neither needs anything
-else.
+`FileEntry`. `treebank-cli` names the language a pack is for when it writes
+`parser.toml`, and reports `rewrites_narrowed` as `Fidelity`. Neither needs
+anything else. (`semiotics-parse` reads that same profile to reject a pack
+naming an unknown language, but it is in the same repository, so it is not a
+seam.)
 
 This is the coupling the Entl design doc missed. It argues:
 
@@ -415,16 +445,22 @@ configured build — which is exactly why treebank stays per-file.
 and lives in Entl, so cowbird and infact keep a one-line migration and semiotics
 never learns that inventory exists.
 
-### treebank ↔ semiotics
+### treebank → semiotics, one way, and a pack going back
+
+treebank links `semiotics` for `LanguageId` and `Fidelity`, and `semiotics-c`
+for its oracle. Semiotics links nothing of treebank's. What comes back the other
+way is a **parser pack**: a directory containing `parser.toml`, a `.wasm`, and
+queries, read at run time and verified by digest.
+
+That asymmetry is the point. A pipeline's output should be an artifact, not an
+API, and a pack already is one — versioned, content-addressed, and discoverable
+without a build. It is also what lets a pack be published, vendored, or pinned
+independently of either repository's release cycle.
 
 *Intended:* the **oracle interface moves to semiotics; the corpus-sweep policy
 stays in treebank.** Semiotics owns "run this language's front end over this file
 with this environment, and return both the adjudication and whatever was
 observed". treebank calls it and keeps one bit for its gap ledger.
-
-This is cheap now in a way it was not under a separate observation repository:
-treebank already depends on semiotics for `LanguageId` and `Fidelity`, so calling
-`semiotics-c` is the same arrow rather than a new one.
 
 The cost is real and bounded. treebank's sweep must stay fast over 850,000
 files, so the observer needs a **verdict-only mode** that builds the translation
@@ -433,6 +469,48 @@ way; the walk is the only extra work.
 
 `Lang::rank` / `resolve` / `classify` / `grammar_dirs` / `route` stay in treebank
 untouched. That is corpus acquisition for grammar work, not codebase inventory.
+
+### Why entl depends on semiotics
+
+This is the one seam with no clean answer, and it is worth stating the trade
+rather than hiding it.
+
+Entl records what language each file is. Detection needs five of
+`LanguageProfile`'s thirteen fields — `extensions`, `source_extensions`,
+`filenames`, `shebangs`, `supersedes`. The other eight — `role`, `facets`,
+`comments`, `conventions`, `config_files`, `package_dependencies` — are meaning,
+and they live in the **same struct literal per language**:
+
+```rust
+pub static PROFILE: LanguageProfile = LanguageProfile {
+    id: "rust", extensions: &["rs"], filenames: &[], shebangs: &[],   // recognition
+    role: Programming, facets: &[&STRUCTURED_CODE],
+    comments: Some(&syntax::RUST), conventions: Some(…),              // meaning
+};
+```
+
+So there are exactly two options and no clever third.
+
+**Entl depends on semiotics.** One registry, one edit to add a language, and
+entl is not standalone.
+
+**Entl keeps recognition and semiotics takes meaning.** Entl depends on nothing,
+at the price of splitting one profile across two repositories. Every new
+language then needs two registrations in two places, and they will drift: a
+language added to entl's recognition table and not to semiotics' meaning table
+detects correctly and then silently has no comment syntax.
+
+**Taken: the first.** The growth axis — how much a new language costs — is the
+axis both design documents care most about, and two registrations is a real tax
+on it. What makes this feel like a layering violation is the name: semiotics
+sounds like analysis, and acquisition depending on analysis is backwards. But
+the crate entl links is the fleet's **language vocabulary**, and the observation
+machinery is in other crates in that repository which entl links none of.
+Depending on a vocabulary is the same kind of dependency as depending on
+`serde`.
+
+If entl being standalone is a hard requirement rather than a preference, the
+recognition/meaning split is viable and this section is where to reverse it.
 
 ### Where the shared shapes live
 
@@ -504,6 +582,64 @@ already get from tree-sitter.
   string. *Intended:* a producer-keyed typed payload, so `ContainerField`'s dotted
   container path, clang's include environment, and MIR's terminator kinds stop
   being unrepresentable and stop being flattened into prose.
+
+## Packs, and the two kinds of them
+
+"Pack" is doing two jobs in this fleet, and conflating them is how the earlier
+drafts kept producing awkward manifests.
+
+| | subject | what it is | changes when |
+|---|---|---|---|
+| **parser pack** — treebank | a *language* | a grammar you **run** | the grammar changes |
+| **observer pack** — semiotics | a *language* | a toolchain driver you **run** | the driver changes |
+| **infact pack** — `infact-packs/rust-core` | a *package at a version* | facts you **look up** | the library or the compiler changes |
+
+The first two are the same kind of thing: a **capability**, keyed by language,
+discovered at run time, verified by digest, and executed. They should share one
+manifest, and `observer.toml` is that manifest for the second.
+
+The third is a different kind: **knowledge**, keyed by a package at a version.
+It is not run; it is joined against. Forcing it into a capability manifest would
+mean pretending a fact about `core 1.93.1` is a tool.
+
+### Knowledge packs already solved versioning
+
+This matters more than the taxonomy, and it is the reason to look at
+`infact-packs/rust-core/pack.toml` before writing anything new:
+
+```toml
+provides = ["rust.call-effects"]
+[subject]    kind = "language"  language = "rust"  ecosystem = "cargo"
+             name = "core"  version = "1.93.1"
+[[sources]]  kind = "toolchain"  name = "rust"  version = "1.93.1"  sha256 = "…"
+[derivation] generator = "infact"  generator-version = "0.0.0"  analyzer-sha256 = "…"
+[compatibility.compiler]  name = "rustc"  version = "1.93.1"
+[[contents]] path = "…"  kind = "call-effects"  sha256 = "…"
+```
+
+That is `Provenance` — `provider`, `provider_version`, `toolchain`, `unit` — plus
+the `pack_digest` and per-content digests this document proposed adding, already
+designed and already shipping. It also carries two things `Provenance` lacks and
+should gain: `provides`/`requires`, which lets a consumer ask what a pack can
+answer without loading it, and `[compatibility.compiler]`, which is the staleness
+check stated as a constraint rather than as a string comparison.
+
+**So a semiotics observation set for a released library *is* an infact knowledge
+pack.** `provides = ["c.call-graph"]`, subject a package at a version, sources
+the toolchain, compatibility the compiler. Same shape, same manifest.
+
+*Intended:* adopt `pack.toml` as the knowledge-pack manifest rather than minting
+a third vocabulary, and add the two fields it does not need but a working tree
+does:
+
+- `inputs_digest` — content hash of the bytes observed. A released library is
+  identified by `[subject].version`; a working tree is not identified by
+  anything until you hash it.
+- `resolution_digest` — hash of the resolved dependency set (`Cargo.lock`,
+  `package-lock.json`, `compile_commands.json`, the classpath). **A `cargo
+  update` changes MIR without changing one byte of source in the unit.**
+
+Everything else is already there.
 
 ## Scope per language
 
@@ -629,17 +765,11 @@ set keeps coverage **per unit** and derives the conservative answer on demand.
 `nightly-2026-07-18` — exactly right for a representation whose instability is
 explicit.
 
-Three fields are missing, and each corresponds to a way an observation goes stale
-without any of the four changing:
-
-1. **`inputs_digest`** — content hash of the bytes observed. Without it,
-   staleness is a filesystem timestamp question.
-2. **`pack_digest`** — what `queries_sha256` already does for parser packs, so
-   two observer packs wrapping the same toolchain stay distinguishable.
-3. **`resolution_digest`** — hash of the resolved dependency set (`Cargo.lock`,
-   `package-lock.json`, `compile_commands.json`, the classpath). **A `cargo
-   update` changes MIR without changing one byte of source in the unit.** This is
-   the field whose absence would bite hardest and it is the least obvious.
+What is missing is covered by adopting infact's `pack.toml` — see *Packs, and
+the two kinds of them*. `[sources]`, `[derivation]` and `[compatibility.compiler]`
+carry the digests and the compiler constraint; `inputs_digest` and
+`resolution_digest` are the two fields a working tree needs that a released
+library does not.
 
 With those, staleness is a comparison rather than a heuristic:
 
@@ -762,11 +892,12 @@ and the third is the one that decides it:
    stable, so any durable node reference is *derived from* byte offsets — which
    means anchoring decorates the span key rather than replacing it.
 3. **The two have different lifetimes.** Re-anchoring needs a grammar and a
-   file; re-observing needs a working toolchain and a build. treebank ships new
-   packs regularly and closes grammar gaps as it goes, so anchors want to be
+   file; re-observing needs a working toolchain and a build. treebank publishes
+   new packs continuously as it closes grammar gaps, so anchors want to be
    recomputed often against observations that are expensive and rarely
    recomputed. Fusing them into one artifact would mean re-running a compiler to
-   pick up a grammar fix.
+   pick up a grammar fix — and since a pack arrives as data rather than as a
+   dependency bump, that recomputation costs nothing but a re-read.
 
 So an anchor set is its own blob, keyed by the observation digest plus the pack
 digest, and a typebank is valid with none, some, or all of its observations
@@ -989,9 +1120,10 @@ a silent empty result. Those hold up, and semiotics inherits them unchanged.
    nearly free to write, and cowbird already has an `nm`-scored ≥95% / ≥90% bar to
    pass or fail against. If it clears, the design is load-bearing; if not, we
    learn that before anything is built on top.
-3. **`entl-tree-sitter` → treebank.** The largest mechanical move, and the one
-   that breaks cowbird and infact, so it goes after the seam has been exercised
-   once.
+3. **`entl-tree-sitter` → `semiotics-parse`.** The largest mechanical move, and
+   the one that breaks cowbird and infact, so it goes after the seam has been
+   exercised once. treebank narrows to automation in the same pass, keeping only
+   what writes packs.
 4. **`semiotics-observe` and TypeScript as the first observer pack.** The slice
    that proves adding a language is data. `entl-ts-observe` disappears.
 
@@ -1054,19 +1186,21 @@ claim here, and the one to test next.
 
 1. **Does the C observer clear cowbird's `nm` bar?** Everything in the consumer
    section rests on it. Testable today against the corpus cowbird already scores.
-2. **Do `semiotics` and `semiotics-observe` stay separate crates?** No longer a
-   close call. `semiotics-observe` depends on treebank in order to anchor, and
-   treebank depends on the `semiotics` root crate to name languages, so merging
-   the two would close a cycle. They stay apart for that reason rather than for
-   the dependency-weight one.
+2. **Is entl being non-standalone acceptable?** Entl depends on `semiotics` for
+   `LanguageId` and detection, and on nothing else. The alternative — entl keeps
+   recognition, semiotics takes meaning — buys standalone-ness for two
+   registrations per language across two repositories, and a drift failure that
+   is silent. Argued in *Why entl depends on semiotics*; the most reversible
+   decision in this document, and the one most worth a second opinion.
 3. **Does `LanguageProfile` split as cleanly as the line count suggests?** The
    2,225/1,142 measurement says the modules do not reference each other, but
    `model/id.rs` defines language and package identifiers together and
    `LanguageDetection` is stored on `FileEntry`. That boundary is the one place the
    split could turn out to be more than a move.
-4. **Where do dialect rewrite tables ultimately live inside treebank?** Proposed
-   as pack data emitted alongside the grammar, rather than a crate-level table, so
-   a gap and its workaround are recorded in one place. Not decided.
+4. **Do dialect rewrite tables become pack data?** They live in
+   `semiotics-parse` as code today. Shipping them in the pack would record a gap
+   and its workaround together and let treebank emit both, at the cost of a
+   richer pack format. Not decided.
 5. **What is the `Fit` distribution in a language with a real preprocessor
    problem?** C against git is 99.5% exact, but C is the language where the two
    tools agree most. The number that would change the design is C# against
