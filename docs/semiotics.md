@@ -21,7 +21,7 @@ rather than existing.
 |---|---|---|
 | **entl** | where did this code come from, and what is in it? | walk and ignore semantics, manifests, packages, workspaces, projects, ecosystems, tool and artifact profiles, forge facts, lazy reads |
 | **treebank** | what does the grammar say? | corpora, ranking, fetching, grammar patches, gap ledgers, `parser.toml`, and the parse runtime |
-| **semiotics** | what does this language mean, and what does this program mean? | language identity, detection, profiles, facets, conventions, verbosity, the observation vocabulary, and the observers |
+| **semiotics** | what does this language mean, and what does this program mean? | language identity, detection, profiles, facets, conventions, verbosity, the observation vocabulary, the observers, and the anchoring of observations to parse trees |
 
 The dependency direction follows from that, and it is the opposite of what a
 first reading suggests. Semiotics is not a layer on top of acquisition. It is
@@ -43,8 +43,13 @@ treebank's packs are both written in terms of.
                     cowbird · infact · straitjacket
 ```
 
-**Semiotics depends on nothing else in the fleet.** That invariant is what makes
-the split worth doing; everything below is in service of keeping it true.
+**The `semiotics` crate depends on nothing else in the fleet.** That invariant is
+what makes the split worth doing, and it is stated about the root crate on
+purpose: `semiotics-observe` *does* depend on treebank, in order to anchor
+observations to parse trees. Because the crate on each side of that arrow is a
+different one, there is no cycle — treebank depends on the vocabulary, and the
+observation driver depends on treebank. A consumer asking "is this file Rust?"
+still links a data crate and no grammar.
 
 ## Shape
 
@@ -97,14 +102,21 @@ layer 0   semiotics                 no fleet dependencies
              ↓
 layer 1   entl-codebase        treebank-parse       (both name languages)
              ↓                       ↓
-layer 2   semiotics-observe    semiotics-store
-             ↓
+layer 2   semiotics-store      semiotics-observe ──→ treebank-parse
+             ↓                                       (to anchor; see below)
 layer 3   semiotics-c   semiotics-rust-mir   observer-packs/*  (data)
              ↓
 layer 4   entl-observe         semiotics-cli
              ↓
 consumers cowbird   infact   treebank-cli ──→ semiotics-c (verdict-only)
 ```
+
+The `semiotics-observe → treebank-parse` arrow is the one that looks like a
+cycle and is not. treebank names languages, so it depends on the `semiotics`
+root crate. The observation driver anchors facts to parse trees, so it depends
+on treebank. Root semiotics depends on neither. Collapsing the root and the
+driver into one crate — considered under Open Questions — would create the
+cycle, which is now a reason not to.
 
 `treebank-cli` is the only arrow that skips the stack. It wants one bit, and
 routing it through the driver would make its 850,000-file sweep pay for
@@ -139,8 +151,14 @@ $ semiotics observe ~/src/bun --out .typebank
   observations/
     sha256-ab12ef….json        envelope and closed-core facts
     sha256-ab12ef….parquet     optional, for million-row payloads such as AIR
+  anchors/
+    sha256-ab12ef….7c40d1.json observations resolved against one parser pack
   index.jsonl                  {path, provider, digest, byte_range}
 ```
+
+An anchor blob is named by the observation digest and the pack digest together,
+because it is a function of both. A typebank is valid with none, some or all of
+its observations anchored — see *Anchoring to the parse tree*.
 
 ### What a consumer does
 
@@ -304,6 +322,12 @@ the producer knowing half and a consumer knowing the other half.
 
 treebank depends on semiotics for `LanguageId` and reports `rewrites_narrowed`
 as semiotics' `Fidelity`. It does not depend on Entl.
+
+Keeping the parse runtime whole matters more under anchoring than it did
+without it. `semiotics-observe` resolves every observation against a parse tree,
+so it needs pack loading, the runtime, and the dialect rewrites in one place and
+from one owner. Had `entl-tree-sitter` been split across two repositories as an
+earlier draft proposed, the anchor would have had to reach into both.
 
 ### The observers
 
@@ -656,7 +680,108 @@ identity, with line and column alongside for display only. Every producer in the
 fleet can supply bytes — `clang_getFileLocation` returns one, tree-sitter is
 byte-native, and TypeScript's UTF-16 offsets convert exactly given the source.
 
-### When the two tools disagree about what the file contains
+### Anchoring to the parse tree
+
+Spans join by arithmetic: a consumer asks what covers bytes 4180 to 4210 and
+gets an answer if the ranges overlap. That works, and it leaves the consumer
+guessing at extents. The better question is whether a compiler's fact lands on
+a *node* — whether the two tools agree about the shape of the thing, not just
+its address.
+
+**Measured, and the answer is yes.** Over the first 40 `.c` files of a git
+checkout, every call libclang reported was matched against the smallest
+tree-sitter node containing its extent:
+
+| | calls | |
+|---|---:|---:|
+| exact byte match on a `call_expression` node | **8,392** | **99.5%** |
+| exact byte match on some *other* node kind | 38 | 0.45% |
+| contained but not exact | 1 | 0.01% |
+| straddling a node boundary, or no node at all | **0** | 0% |
+
+Two things in that table are worth more than the headline.
+
+**Macros do not break it.** 1,716 of the 8,431 calls (20.4%) are macro
+expansions as far as clang is concerned, and 1,678 of those still land exactly
+on a `call_expression` — because a function-like macro invocation is spelled
+like a call and the grammar reads it as one. The failure mode assumed in the
+earlier draft, where macro-generated facts have no node to anchor to, mostly
+does not occur.
+
+**The disagreements are informative rather than noisy.** All 38 are macro
+expansions, and the archetype is a single one:
+
+```
+abspath.c   clang: call to __errno_location()   tree-sitter: identifier `errno`
+```
+
+`errno` is a macro that expands to a function call. Byte-for-byte the two tools
+agree on the extent exactly; they disagree about what kind of thing is there.
+Neither is wrong. This is the cleanest example in the fleet of a fact that
+exists in the compiler and has no counterpart in the grammar, and it argues for
+recording the node kind rather than a fidelity ladder.
+
+So, *intended:*
+
+```rust
+/// A span resolved against a parse tree. Derived, never authored.
+pub struct Anchor {
+    /// The node the span landed on, and the pack whose grammar named it.
+    pub node_kind: String,
+    pub pack: ParserPackId,
+    pub node_span: Span,
+    pub fit: Fit,
+}
+
+pub enum Fit {
+    /// The observation's extent is exactly the node's extent.
+    Exact,
+    /// Contained by the node, but narrower.
+    Inside,
+    /// Crosses a node boundary, so the two tools disagree about structure.
+    Straddles,
+    /// No node contains it: generated text, or a configuration the grammar
+    /// did not read.
+    Absent,
+}
+```
+
+A consumer compares `node_kind` against what it expected — `call_expression`
+for a `CallEdge` — and a mismatch is the finding. `Fit` covers the structural
+cases; the kind covers the semantic ones, and the measurement says the kind is
+where the action is.
+
+**The anchor is derived, optional, and separately versioned.** Three reasons,
+and the third is the one that decides it:
+
+1. Requiring an anchor would make a parser pack a prerequisite for observation.
+   Entl ships packs for seven languages and none of them is C# or Java, so
+   mandatory anchoring would block the two languages whose observers are
+   cheapest to write.
+2. Bytes remain the identity. Node identity in tree-sitter is per-parse and not
+   stable, so any durable node reference is *derived from* byte offsets — which
+   means anchoring decorates the span key rather than replacing it.
+3. **The two have different lifetimes.** Re-anchoring needs a grammar and a
+   file; re-observing needs a working toolchain and a build. treebank ships new
+   packs regularly and closes grammar gaps as it goes, so anchors want to be
+   recomputed often against observations that are expensive and rarely
+   recomputed. Fusing them into one artifact would mean re-running a compiler to
+   pick up a grammar fix.
+
+So an anchor set is its own blob, keyed by the observation digest plus the pack
+digest, and a typebank is valid with none, some, or all of its observations
+anchored.
+
+**The `Fit` and kind distribution is a gap ledger for the grammar/compiler
+seam**, in the same sense treebank already ledgers grammar gaps against its
+oracle. 0.45% for C against git is a number; the same number for C# against
+`dotnet/dotnet`, or for TypeScript against DefinitelyTyped, is worth having
+before anyone trusts a cross-tool join in those languages.
+
+### What anchoring does not fix
+
+The measurement above compares facts clang *produced*. It is silent about facts
+clang could not produce, and that is where the hard case lives.
 
 `treebank-csharp/LOCAL-PATCHES.md` is the worked example. Roslyn parses the
 **active configuration**: with no symbols defined, `#if FOO` is false, the other
@@ -677,30 +802,35 @@ is no single well-formed tree, and neither tool is wrong. treebank measured the
 consequence: of 7,148 oracle-valid grammar failures, **4,617 are caused only by
 conditional compilation** and are not bugs anyone can fix.
 
-Realigning the offsets is the wrong response, because the disagreement is not
-about offsets. It is about which text exists.
+A call inside an inactive branch is not a bad anchor. It is an **absent
+observation** — the compiler never saw the text, so there is no fact to anchor.
+No amount of node matching surfaces it, and the git measurement cannot detect
+it either: 14 of those 40 files parsed with `ERROR` nodes present and their
+calls still anchored cleanly, because every call clang reported came from the
+configuration clang read.
 
-*Intended:* **the join is refused rather than fudged.**
+That is a coverage problem, and it is handled where coverage problems belong:
 
-- `Span` carries a `text_digest` — a hash of the unit as *that producer read it*.
-  A producer that read rewritten, reduced or preprocessed text has a different
-  digest, and a consumer joining across a digest boundary gets a diagnostic
-  rather than a silent mismatch.
+- `Span` carries a `text_digest` — a hash of the unit as *that producer read
+  it*. A producer that read rewritten, reduced or preprocessed text has a
+  different digest, and a consumer joining across a digest boundary gets a
+  diagnostic rather than a silent mismatch.
 - `Environment::configuration` records the preprocessor symbols, `cfg` flags or
   target in effect. Two observations of one file under two configurations are
   **two observation sets**, joinable with each other and not with a parse that
   saw all branches.
-- For macro and generated code, *intended, unverified:* `Span` gains
-  `expanded_from: Option<Box<Span>>`. clang exposes spelling location and
-  expansion location separately (`clang_getSpellingLocation` /
-  `clang_getExpansionLocation`), which is what would let a fact about generated
-  text join back to the macro the author wrote. Not probed.
+- *Intended, unverified:* `Span` gains `expanded_from: Option<Box<Span>>`. clang
+  exposes spelling and expansion locations separately
+  (`clang_getSpellingLocation` / `clang_getExpansionLocation`), which is what
+  would let a fact about generated text join back to the macro the author wrote.
+  The git measurement suggests this matters less than expected — 97.8% of
+  macro-expanded calls anchored exactly — but the remaining 2.2% is where it
+  would earn its place.
 
-This costs consumers something honest: a query spanning a preprocessor boundary
-returns a gap instead of an answer. That is the correct outcome. cowbird's
-`cgraph.rs` already lists "conditional-compilation branches the canonical parse
-did not see" among the things it knowingly misses; semiotics should make that
-visible in the data rather than in a module comment.
+cowbird's `cgraph.rs` already lists "conditional-compilation branches the
+canonical parse did not see" among the things it knowingly misses. Semiotics
+should make that visible in the data rather than in a module comment, and the
+anchor is not the mechanism that does it.
 
 ## Consumers
 
@@ -808,6 +938,14 @@ The index carries each blob's path set and byte range, so "what does anything
 know about `src/lib.rs:150`" reads one index line and one blob rather than
 scanning.
 
+**Why anchors are keyed separately.** An anchor blob's name is
+`sha256(observation_digest ‖ pack_digest)`. treebank ships new packs and closes
+grammar gaps continuously, so anchors are recomputed often; observations need a
+working toolchain and a build, so they are recomputed rarely. Fusing them would
+mean re-running a compiler to pick up a grammar fix. Separate keys also make the
+`Fit` distribution diffable across pack versions, which is what turns it into a
+ledger rather than a one-off measurement.
+
 **Why it is safe to cache.** The digest covers the toolchain and the resolved
 dependency set, not just the source. That is the difference between a cache that
 is safe and one that is merely fast.
@@ -845,7 +983,8 @@ a silent empty result. Those hold up, and semiotics inherits them unchanged.
 1. **`semiotics`, the crate.** Merge `entl-semantics` with the language third of
    `entl-codebase`. Mechanical, measured clean, and it unblocks everything else.
    Entl gains one dependency and loses 2,225 lines.
-2. **`semiotics-c` and `semiotics-store`, consumed by cowbird's `cgraph.rs`.**
+2. **`semiotics-c` and `semiotics-store`, consumed by cowbird's `cgraph.rs`,
+   with anchoring alongside.**
    The first slice that matters. C is the one language where the observer is
    nearly free to write, and cowbird already has an `nm`-scored ≥95% / ≥90% bar to
    pass or fail against. If it clears, the design is load-bearing; if not, we
@@ -884,6 +1023,15 @@ pinned to its own nightly, so it is the least entangled thing in the fleet.
 
 - `entl-ts-observe` reports column 39 where tree-sitter and clang report byte 41,
   on a line containing `café 🎉`.
+- **Anchoring, over the first 40 `.c` files of a git checkout** (libclang 20.1.2
+  against tree-sitter-c via `tree_sitter` 0.26, the same tree-sitter major Entl
+  pins): 8,431 calls, of which 8,392 (99.5%) land on an exact byte match to a
+  `call_expression` node, 38 (0.45%) on an exact match to a different node kind,
+  1 contained-but-not-exact, and **none** straddling a boundary or missing a node.
+  1,716 calls (20.4%) are macro expansions and 1,678 of those anchor exactly. All
+  38 kind mismatches are macro expansions, and the archetype is `errno` reading as
+  an `identifier` to the grammar and as a call to `__errno_location()` to clang.
+  14 of the 40 files parsed with `ERROR` nodes present without affecting the fit.
 - The `entl-codebase` split line: 2,225 lines on the language side, 1,142 on the
   Entl side, and the language side references nothing across the seam except
   `model/id.rs`. Established by grep over `profiles/` and `model/`, not by
@@ -906,10 +1054,11 @@ claim here, and the one to test next.
 
 1. **Does the C observer clear cowbird's `nm` bar?** Everything in the consumer
    section rests on it. Testable today against the corpus cowbird already scores.
-2. **Do `semiotics` and `semiotics-observe` stay separate crates?** Merging them
-   would make semiotics literally one crate, at the cost of `toml` and `sha2` on
-   every consumer that only wanted the language registry. Kept apart here; it is a
-   close call.
+2. **Do `semiotics` and `semiotics-observe` stay separate crates?** No longer a
+   close call. `semiotics-observe` depends on treebank in order to anchor, and
+   treebank depends on the `semiotics` root crate to name languages, so merging
+   the two would close a cycle. They stay apart for that reason rather than for
+   the dependency-weight one.
 3. **Does `LanguageProfile` split as cleanly as the line count suggests?** The
    2,225/1,142 measurement says the modules do not reference each other, but
    `model/id.rs` defines language and package identifiers together and
@@ -918,7 +1067,20 @@ claim here, and the one to test next.
 4. **Where do dialect rewrite tables ultimately live inside treebank?** Proposed
    as pack data emitted alongside the grammar, rather than a crate-level table, so
    a gap and its workaround are recorded in one place. Not decided.
-5. **Is tier 1 worth having for anything but C?** Every tree-sitter observer is
+5. **What is the `Fit` distribution in a language with a real preprocessor
+   problem?** C against git is 99.5% exact, but C is the language where the two
+   tools agree most. The number that would change the design is C# against
+   `dotnet/dotnet`, where treebank has already measured 4,617 files whose grammar
+   failure is caused only by conditional compilation. Cheap to run once a C#
+   observer exists, and it should run before any consumer trusts a cross-tool join
+   in C#.
+6. **Should an observation declare the node kind it expects?** The measurement
+   says kind mismatch, not structural misfit, is where the disagreements live —
+   which suggests a `CallEdge` should say it expects a `call_expression` so the
+   anchor can flag `errno`-shaped cases automatically. That means the schema
+   naming grammar node kinds, which couples it to a specific pack's vocabulary.
+   Undecided, and the coupling is the reason.
+7. **Is tier 1 worth having for anything but C?** Every tree-sitter observer is
    tier 1, but tree-sitter observations are not compiler observations. If C is the
    only compiler in tier 1, the tier distinction may be one language wearing a
    general name.
