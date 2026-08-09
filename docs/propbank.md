@@ -1,15 +1,16 @@
-# Semantics
+# Propbank
 
 *A design sketch. Nothing here is implemented. Where a claim was tested, the
 probe and its numbers are given; where it was not, it is marked unverified.*
 
-Semantics exports what a language's own tooling knows about a program —
+Propbank exports what a language's own tooling knows about a program —
 resolved calls, types, definitions, references — marshalled into one format,
 anchored to byte ranges, and honest about what it could not answer. It is the
 destination for the compiler-observation code Entl is going to shed.
 
-**Semantics is the crate. A typebank is what it produces** — the
-content-addressed set of span-anchored observations a run leaves on disk.
+A **propbank** is both the tool and the artifact, the way a treebank is: the
+repository, and the content-addressed set of span-anchored observations a run
+leaves on disk.
 
 This document follows Entl's convention: *intended* marks something proposed
 rather than existing.
@@ -21,7 +22,7 @@ rather than existing.
 | **semiotics** | what is this language, and what do we know about it? | languages, ecosystems, tools, artifacts, traversal, conventions, comment syntax, verbosity — modelling and encoding, one crate |
 | **entl** | where did this code come from, and what is in it? | walk and ignore semantics, manifests, packages, workspaces, projects, forge facts, lazy reads |
 | **treebank** | what does the grammar say? | auto-updating tree-sitter grammars, corpora, sweeps, gap ledgers, packs — **and tree-sitter utilities**: the parse runtime, anchoring, grammar-based observers |
-| **semantics** | what does this program mean? | compiler observers, the observation format, the store |
+| **propbank** | what does this program mean? | compiler observers, the observation format, the store |
 
 ```
                         semiotics
@@ -30,7 +31,7 @@ rather than existing.
                   ↑          ↑              ↑
         ┌─────────┘          │              └──────────┐
         │                    │                         │
-      entl               semantics  ←───────────────  treebank
+      entl               propbank  ←───────────────  treebank
   walk · github      compiler observers          grammars · packs
                      format · store              parse runtime · anchoring
                                                  tree-sitter observers · oracle
@@ -41,25 +42,25 @@ rather than existing.
 ```
 
 **Every arrow points down, and nothing points back.** `semiotics` is a leaf.
-`entl` and `semantics` are peers that do not know about each other. `treebank`
-sits above `semantics` because it is a pipeline nobody links, and that is what
+`entl` and `propbank` are peers that do not know about each other. `treebank`
+sits above `propbank` because it is a pipeline nobody links, and that is what
 makes the three crossings below resolve without a cycle.
 
 ### The rule that falls out
 
 Three things need both a parse tree and an observation type, and they were the
 cycle risk in every earlier draft. All three resolve the same way, because
-`treebank → semantics` is legal and the reverse is not:
+`treebank → propbank` is legal and the reverse is not:
 
 | | needs | lands in |
 |---|---|---|
 | **anchoring** a span to a node | a parse tree, `Span` | treebank |
-| the **oracle** — is this file valid? | libclang, a verdict | treebank, calling `semantics-c` |
+| the **oracle** — is this file valid? | libclang, a verdict | treebank, calling `propbank-c` |
 | **grammar-based observers** (Zig container fields) | a parse tree, `Definition` | treebank |
 
-So: **needs a parse tree → treebank. Needs a compiler → semantics.** That is
+So: **needs a parse tree → treebank. Needs a compiler → propbank.** That is
 "tree-sitter utilities" taken literally, and it is why the oracle costs no
-duplication — treebank already links semantics, so it calls `semantics-c`
+duplication — treebank already links propbank, so it calls `propbank-c`
 rather than driving libclang a second time.
 
 ### Where this landed, and why it moved
@@ -80,18 +81,27 @@ This one is stable in a way the others were not: the runtime lives with the only
 repository defined by tree-sitter, and the leaf holds no logic that could
 attract it back.
 
-### On the two names
+### On the name
 
-`semiotics` and `semantics` differ by three letters, share a prefix, and both
-mean roughly "meaning". The distinction is real and rather good — semiotics is
-what a *language* is, semantics is what a *program* means — but the day-to-day
-cost lands in imports, tab-completion and review comments, where
-`semiotics::LanguageId` and `semantics::Span` will be misread for each other.
+Borrowed from computational linguistics, where it is the sibling of a treebank.
+A treebank annotates a corpus with syntactic structure; a PropBank annotates the
+**same** corpus with predicate-argument semantics, aligned to the same tokens.
+That is exactly this split — one source, one layer from the grammar and one from
+the compiler, joined by alignment — and a reader who understands `treebank` gets
+`propbank` for free.
 
-The alternative that avoids it entirely: **treebank and typebank as a matched
-pair** — trees and types — with `semiotics` as the leaf under both. Same
-structure, no collision, and "a typebank is what it produces" becomes literal.
-Written here with the names as given; say the word and it is a rename.
+The borrowing is loose in the same way `treebank`'s is. Penn PropBank means
+semantic role labelling specifically, and this emits calls, types, definitions,
+references and implementations; treebank here is likewise not a treebank but a
+pipeline that builds corpora to test grammars. The shape is right in both cases.
+
+Two names considered and rejected. **`semantics`** is the accurate word and
+collides with `semiotics` — three letters apart, shared prefix, both meaning
+roughly "meaning" — which is a tax on every import and review comment; it is
+also overloaded here by semantic analysis, semantic versioning, and the existing
+`entl-semantics` crate. **`factbank`** reads well and is disqualified because
+**infact** already owns "fact" in this fleet and derives its facts from these
+very observations.
 
 ## Shape
 
@@ -105,15 +115,15 @@ semiotics/                one crate, no fleet dependencies
   src/verbosity.rs        1,334 lines of measured ratios, corpus-versioned
   src/vocabulary.rs       LanguageId · Span · Fidelity — the cross-cutting types
 
-semantics/
+propbank/
   crates/
-    semantics/            the observation format: Provenance, Coverage,
+    propbank/            the observation format: Provenance, Coverage,
                           Environment, Anchor, the five question kinds,
                           ObservationUnit, and the pack manifest schemas
-    semantics-observe/    the driver, and the observer.toml pack mechanism
-    semantics-store/      content-addressed blobs, Arrow sidecars
-    semantics-c/          libclang; the only tier-1 compiler observer
-    semantics-rust-mir/   rustc_private; excluded from the workspace
+    propbank-observe/    the driver, and the observer.toml pack mechanism
+    propbank-store/      content-addressed blobs, Arrow sidecars
+    propbank-c/          libclang; the only tier-1 compiler observer
+    propbank-rust-mir/   rustc_private; excluded from the workspace
   observer-packs/
     typescript/           observer.toml + observe.mjs   ← providers/typescript
     zig-air/              observer.toml, drives a forked zig
@@ -140,8 +150,8 @@ static tables, a detection function, and the two or three types that cross every
 boundary. It needs `serde`, `registry-inventory` and `thiserror` and nothing
 heavier. A consumer asking "is this file Rust?" links data.
 
-Only two crates in the fleet link a compiler's internal API — `semantics-c` and
-`semantics-rust-mir` — and that is the only case that forces a crate at all.
+Only two crates in the fleet link a compiler's internal API — `propbank-c` and
+`propbank-rust-mir` — and that is the only case that forces a crate at all.
 Entl's mechanism table already says so:
 
 | mechanism | requires | example | form |
@@ -159,11 +169,11 @@ manifest and a script, not a crate, a build dependency and a release surface.
 ```
 layer 0   semiotics                                    no fleet dependencies
              ↓
-layer 1   semantics   treebank-parse   entl-codebase
+layer 1   propbank   treebank-parse   entl-codebase
              ↓              ↓                ↓
-layer 2   semantics-{c,rust-mir,store}   treebank-anchor   entl-github
+layer 2   propbank-{c,rust-mir,store}   treebank-anchor   entl-github
              ↓              ↓            treebank-zig          ↓
-layer 3   semantics-observe              treebank-cli      entl-observe
+layer 3   propbank-observe              treebank-cli      entl-observe
              ↓                                ↓                ↓
 consumers cowbird · infact · straitjacket
 
@@ -171,12 +181,12 @@ consumers cowbird · infact · straitjacket
 ```
 
 `treebank-parse` reads a pack directory at run time and never links the thing
-that wrote it. `treebank-cli` links `semantics-c` for its oracle, which costs no
+that wrote it. `treebank-cli` links `propbank-c` for its oracle, which costs no
 duplicated libclang driver precisely because that arrow is allowed.
 
-**No CLI in semantics.** Observing a tree means walking it and resolving
+**No CLI in propbank.** Observing a tree means walking it and resolving
 projects, which is entl's job, so a CLI that did the whole run would put an entl
-dependency inside semantics and reintroduce a cycle from the other side. The
+dependency inside propbank and reintroduce a cycle from the other side. The
 integration point is `entl-observe`, and consumers drive it — already how
 cowbird and infact consume `entl-codebase`. If a CLI is wanted later it belongs
 in **entl**, where the walk is.
@@ -277,7 +287,7 @@ parse error appears, so `ORACLE.md`'s categorical rule says indeterminate. The
 Validity and semantics degrade independently, which is the single most important
 constraint in this document.
 
-So semantics does not inherit treebank's compiler runs. **It inherits treebank's
+So propbank does not inherit treebank's compiler runs. **It inherits treebank's
 adjudication discipline**: the three-valued verdict, categories rather than
 message text, `other` as a named tripwire, "never invent invalidity", the
 negative corpus, and a ledger that states what was not adjudicated. That
@@ -292,11 +302,11 @@ For each Entl crate, where it goes.
 |---|---|
 | `entl-codebase` | **splits**: all of `profiles/` → **semiotics**; walk, manifests, packages, workspaces, projects stay in Entl |
 | `entl-github` | **stays in Entl**, unchanged |
-| `entl-semantics` | **merges into `semantics`** as the observation vocabulary |
+| `entl-semantics` | **merges into `propbank`** as the observation vocabulary |
 | `entl-tree-sitter` | **→ treebank**, entirely, as `treebank-parse`; `repository.rs` deleted |
-| `entl-rust-mir` | **→ `semantics-rust-mir`**, intact, still outside the workspace |
+| `entl-rust-mir` | **→ `propbank-rust-mir`**, intact, still outside the workspace |
 | `entl-ts-observe` | **→ observer pack `typescript/`**; the crate dissolves |
-| `entl-zig-air` | **splits**: reader → observer pack `zig-air/`; `store.rs` → `semantics-store` |
+| `entl-zig-air` | **splits**: reader → observer pack `zig-air/`; `store.rs` → `propbank-store` |
 | `entl-zig-observe` | **→ `treebank-zig`** — a grammar-based observer, so treebank by the rule above |
 
 ### Splitting `entl-codebase`
@@ -305,7 +315,7 @@ For each Entl crate, where it goes.
 only the ~2,225 lines of language profiles and left ecosystems, tools, artifacts
 and traversal behind; that was a mistake, because it split one registry idiom
 across two repositories and left `entl-codebase` owning half a vocabulary that
-treebank and semantics also need.
+treebank and propbank also need.
 
 | | lines |
 |---|---:|
@@ -331,7 +341,7 @@ Entl's design doc already drew the line inside this directory:
 Semiotics keeps them separate registries. It just stops pretending either one
 belongs to the walker.
 
-What Entl keeps is still a coherent crate — tree traversal and ignore semantics,
+What Entl keeps is still a coherent crate — tree traversal and ignore propbank,
 manifest parsing, packages, workspaces, projects, discovery handlers, and lazy
 access to source bytes. It calls `semiotics::detect_language` during the walk,
 which is one call in `walk.rs`, and reads registries it no longer owns.
@@ -339,7 +349,7 @@ which is one call in `walk.rs`, and reads registries it no longer owns.
 ### `entl-semantics` merges into the root crate
 
 Zero dependencies today, so the move is free. It arrives as the observation
-vocabulary of `semantics` rather than as its own crate, because `LanguageId` and
+vocabulary of `propbank` rather than as its own crate, because `LanguageId` and
 `Span` are wanted by the same consumers and splitting them buys nothing. Three
 amendments, argued later: byte spans, `Fidelity` plus `Environment`, and stable
 entity ids.
@@ -365,7 +375,7 @@ is treebank's. It becomes `treebank-parse`.
   They are replaced by the seam below.
 
 `ParsedFile::rewrites_narrowed` reports as `semiotics::Fidelity`, which is why
-that type is in the leaf rather than in semantics: treebank produces fidelity
+that type is in the leaf rather than in propbank: treebank produces fidelity
 without producing observations.
 
 Anchoring joins it as `treebank-anchor`, for the same reason — resolving a span
@@ -386,7 +396,7 @@ whose disappearance proves the mechanism.
 output — is an observer and becomes a pack. `store.rs` — 286 lines of Arrow and
 Parquet writing — is **not a Zig fact**; it is a storage backend that happened to
 be written inside a Zig crate because Zig was the first observer with millions of
-rows. It becomes `semantics-store`, owned by no language, and is why semantics
+rows. It becomes `propbank-store`, owned by no language, and is why propbank
 does not need to invent a columnar sink.
 
 `entl-zig-observe` moves intact as `treebank-zig`. It observes Zig container
@@ -404,7 +414,7 @@ All three name languages, and that is the whole of it. `entl-codebase` calls
 `detect_language` during the walk and stores a `LanguageDetection` on each
 `FileEntry`. `treebank-parse` calls `language_profile(&manifest.language)` to
 reject a pack naming an unknown language, and `role.expects_parser_pack()` to
-decide whether a missing pack is a diagnostic or silence. `semantics-observe`
+decide whether a missing pack is a diagnostic or silence. `propbank-observe`
 names the language of each `ObservationUnit`. None needs anything else, and none
 needs the others.
 
@@ -429,10 +439,10 @@ for one library has nothing left to hold.
 The seam is a value type, not a trait:
 
 ```rust
-// semantics-observe (intended)
+// propbank-observe (intended)
 pub struct ObservationUnit {
     pub path: PathBuf,
-    pub language: semantics::LanguageId,
+    pub language: propbank::LanguageId,
     pub read: Box<dyn Fn() -> io::Result<Arc<[u8]>> + Send + Sync>,
     /// The build the observer should configure itself from, when there is one.
     /// `None` means per-file observation is the only thing available.
@@ -455,13 +465,13 @@ reachable. treebank's corpus cannot supply it — a Debian source tarball has no
 configured build — which is exactly why treebank stays per-file.
 
 `entl-observe` provides `units_from(&CodebaseInventory) -> Vec<ObservationUnit>`
-and lives in Entl, so cowbird and infact keep a one-line migration and semantics
+and lives in Entl, so cowbird and infact keep a one-line migration and propbank
 never learns that inventory exists.
 
-### treebank → semantics, one way, and a pack going back
+### treebank → propbank, one way, and a pack going back
 
-treebank links `semantics` for `LanguageId` and `Fidelity`, and `semantics-c`
-for its oracle. Semantics links nothing of treebank's. What comes back the other
+treebank links `propbank` for `LanguageId` and `Fidelity`, and `propbank-c`
+for its oracle. Propbank links nothing of treebank's. What comes back the other
 way is a **parser pack**: a directory containing `parser.toml`, a `.wasm`, and
 queries, read at run time and verified by digest.
 
@@ -470,8 +480,8 @@ API, and a pack already is one — versioned, content-addressed, and discoverabl
 without a build. It is also what lets a pack be published, vendored, or pinned
 independently of either repository's release cycle.
 
-*Intended:* the **oracle interface moves to semantics; the corpus-sweep policy
-stays in treebank.** Semantics owns "run this language's front end over this file
+*Intended:* the **oracle interface moves to propbank; the corpus-sweep policy
+stays in treebank.** Propbank owns "run this language's front end over this file
 with this environment, and return both the adjudication and whatever was
 observed". treebank calls it and keeps one bit for its gap ledger.
 
@@ -493,7 +503,7 @@ layer, or one profile split across two repositories and every new language
 needed two registrations that would silently drift.
 
 **Splitting `semiotics` out dissolves it.** entl depends on a registry crate.
-So do treebank and semantics. Nobody is above anybody, one registration per
+So do treebank and propbank. Nobody is above anybody, one registration per
 language, no drift.
 
 That the tangle kept recurring was the signal: every arrangement pushed the
@@ -508,7 +518,7 @@ times before it was heard.
 reports `Fidelity` for a narrowed rewrite without producing an observation, and
 `Span` is the join key for everything the fleet emits.
 
-**In `semantics`:** `Provenance`, `Coverage`, `Environment`, `Anchor`, and the
+**In `propbank`:** `Provenance`, `Coverage`, `Environment`, `Anchor`, and the
 five question kinds. Nothing outside the observation layer constructs these, and
 putting them in the leaf would make every consumer of "is this file Rust?" carry
 a call-graph vocabulary.
@@ -553,7 +563,7 @@ depend on `entl-codebase` and `entl-tree-sitter` and nothing else.
 cowbird has instead built its own semantic layer inline — `lsp.rs` drives zls to
 resolve import edges, `cgraph.rs` approximates the C linker's symbol graph from
 syntax and scores itself against `nm`, `typemap.rs` reports 6.9% `unknown-name`
-residue it describes as "gaps in the index, and C FFI types". Those are semantics
+residue it describes as "gaps in the index, and C FFI types". Those are propbank
 queries answered badly, per-language, in a consumer.
 
 What would pay cowbird is the **closed core**: the same question answered about
@@ -584,7 +594,7 @@ drafts kept producing awkward manifests.
 | | subject | what it is | changes when |
 |---|---|---|---|
 | **parser pack** — treebank | a *language* | a grammar you **run** | the grammar changes |
-| **observer pack** — semantics | a *language* | a toolchain driver you **run** | the driver changes |
+| **observer pack** — propbank | a *language* | a toolchain driver you **run** | the driver changes |
 | **infact pack** — `infact-packs/rust-core` | a *package at a version* | facts you **look up** | the library or the compiler changes |
 
 The first two are the same kind of thing: a **capability**, keyed by language,
@@ -617,7 +627,7 @@ should gain: `provides`/`requires`, which lets a consumer ask what a pack can
 answer without loading it, and `[compatibility.compiler]`, which is the staleness
 check stated as a constraint rather than as a string comparison.
 
-**So a semantics observation set for a released library *is* an infact knowledge
+**So a propbank observation set for a released library *is* an infact knowledge
 pack.** `provides = ["c.call-graph"]`, subject a package at a version, sources
 the toolchain, compatibility the compiler. Same shape, same manifest.
 
@@ -645,7 +655,7 @@ that decides the design.
 | **Java** | `JavacTask.analyze()` | technically; 34× and errors on every cross-file reference | yes, 2.6× over parse | binary name via `Elements` — unverified |
 | **C#** | `CSharpCompilation` + `GetSemanticModel` | **no** — 79×, and silently loses 200 of 1200 calls | yes, 19× over parse | `GetDocumentationCommentId()` — verified |
 | **TypeScript** | `ts.createProgram` + checker | **no** — 687×, reloads `lib.d.ts` per file | yes, 16× over parse, needs `tsconfig.json` | **none** — see below |
-| **Rust** | `semantics-rust-mir` as a drop-in `RUSTC` | **no** — there is no per-file mode at all | requires a working `cargo build` | rustc def path |
+| **Rust** | `propbank-rust-mir` as a drop-in `RUSTC` | **no** — there is no per-file mode at all | requires a working `cargo build` | rustc def path |
 | **Zig** | `--verbose-air` from a forked toolchain | unverified | requires a build | unverified |
 
 Reading:
@@ -778,7 +788,7 @@ The MIR question specifically: a consumer knows a MIR observation is stale
 because the `toolchain` string does not match the toolchain now installed. It
 cannot know whether MIR's *shape* changed underneath — that is what
 `provider_version` plus a pinned toolchain is for, and it is why
-`semantics-rust-mir` carries its own `rust-toolchain.toml` and always will.
+`propbank-rust-mir` carries its own `rust-toolchain.toml` and always will.
 
 ## Joining with tree-sitter
 
@@ -893,13 +903,13 @@ and the third is the one that decides it:
    dependency bump, that recomputation costs nothing but a re-read.
 
 So an anchor set is its own blob, keyed by the observation digest plus the pack
-digest, and a typebank is valid with none, some, or all of its observations
+digest, and a propbank is valid with none, some, or all of its observations
 anchored.
 
 It also lives in **treebank**, as `treebank-anchor`, because resolving a span
-against a node needs the parse runtime and `semantics → treebank` is the arrow
-that would close a cycle. treebank reads `semantics::Span` and writes
-`semantics::Anchor`; semantics never learns that tree-sitter exists. That the
+against a node needs the parse runtime and `propbank → treebank` is the arrow
+that would close a cycle. treebank reads `propbank::Span` and writes
+`propbank::Anchor`; propbank never learns that tree-sitter exists. That the
 anchor pass was already a separate, separately-keyed artifact is what makes this
 cost nothing.
 
@@ -959,7 +969,7 @@ That is a coverage problem, and it is handled where coverage problems belong:
   would earn its place.
 
 cowbird's `cgraph.rs` already lists "conditional-compilation branches the
-canonical parse did not see" among the things it knowingly misses. Semantics
+canonical parse did not see" among the things it knowingly misses. Propbank
 should make that visible in the data rather than in a module comment, and the
 anchor is not the mechanism that does it.
 
@@ -998,7 +1008,7 @@ The residue includes 6.9% `unknown-name` — "gaps in the index, and C FFI types
 A Zig observer answers the index gaps directly. The C FFI half is answered by the
 C observer, across a language boundary the current design cannot cross at all.
 Note what it does **not** answer: 14.6% `pointer-needs-class` is ownership, which
-`typemap.rs` correctly says "is not a property of the type at all". Semantics
+`typemap.rs` correctly says "is not a property of the type at all". Propbank
 must not pretend to answer it.
 
 ### cowbird `src/analysis/lsp.rs`
@@ -1032,7 +1042,7 @@ today with one fewer copy of the oracle to maintain.
 
 ## Storage and shape on disk
 
-A typebank is **content-addressed blobs plus a small index**. Not a database.
+A propbank is **content-addressed blobs plus a small index**. Not a database.
 
 **The digest is the cache key and the staleness check in one:**
 
@@ -1052,7 +1062,7 @@ makes content addressing work at all, and it exists today.
 
 **Why not a database as the primary artifact.** It is not diffable, not
 content-addressed, and not reviewable. More concretely, infact already runs DBSP
-for incremental relations — semantics should feed that, not compete with it. A
+for incremental relations — propbank should feed that, not compete with it. A
 consumer wanting SQL builds a projection; the Entl design doc's Direction item 8
 says the same thing about serialization, and for the same reason.
 
@@ -1060,7 +1070,7 @@ says the same thing about serialization, and for the same reason.
 instruction counts run to the millions, and that was the right call. The envelope
 is small and belongs in reviewable JSON; a payload with millions of rows belongs
 in a columnar file. One digest names both, so the pair is atomic. This is what
-`semantics-store` is for, and it is why `store.rs` should be lifted rather than
+`propbank-store` is for, and it is why `store.rs` should be lifted rather than
 deleted.
 
 **Why it is cheap to query.** Facts sorted by `(path, start_byte)` make a span
@@ -1107,7 +1117,7 @@ Where the design is right and should not be relitigated: the rejection of a
 common IR; spans as the join key; provenance on every fact; the pack mechanism
 and its runtime discovery; the wasm boundary; the separation of language and
 ecosystem registries; and treating an absent compiler as a diagnostic rather than
-a silent empty result. Those hold up, and semantics inherits them unchanged.
+a silent empty result. Those hold up, and propbank inherits them unchanged.
 
 ## Build order
 
@@ -1115,9 +1125,9 @@ a silent empty result. Those hold up, and semantics inherits them unchanged.
    the id and detection types with it, and invert
    `DependencyPinPolicy::classify`. Nothing else can start until the fleet has
    one place to name a language. Entl loses ~3,400 lines and gains one
-   dependency; `entl-semantics` becomes the `semantics` root crate separately and
+   dependency; `entl-semantics` becomes the `propbank` root crate separately and
    trivially, since it has none.
-2. **`semantics-c` and `semantics-store`, consumed by cowbird's `cgraph.rs`,
+2. **`propbank-c` and `propbank-store`, consumed by cowbird's `cgraph.rs`,
    with anchoring alongside.**
    The first slice that matters. C is the one language where the observer is
    nearly free to write, and cowbird already has an `nm`-scored ≥95% / ≥90% bar to
@@ -1126,10 +1136,10 @@ a silent empty result. Those hold up, and semantics inherits them unchanged.
 3. **`entl-tree-sitter` → treebank.** The largest mechanical move, and the one
    that breaks cowbird and infact, so it goes after the seam has been exercised
    once. `treebank-anchor` follows in the same pass, since it needs the runtime.
-4. **`semantics-observe` and TypeScript as the first observer pack.** The slice
+4. **`propbank-observe` and TypeScript as the first observer pack.** The slice
    that proves adding a language is data. `entl-ts-observe` disappears.
 
-`semantics-rust-mir` moves whenever convenient — it is outside the workspace and
+`propbank-rust-mir` moves whenever convenient — it is outside the workspace and
 pinned to its own nightly, so it is the least entangled thing in the fleet.
 
 ## What was verified
@@ -1198,28 +1208,24 @@ claim here, and the one to test next.
    `profiles ⇄ model` crossing is enumerated in *Shape* and each item has a
    resolution, but none has been attempted. `DependencyPinPolicy::classify` is
    the one that needs a real signature change rather than a move.
-4. **Are `semiotics` and `semantics` too close as names?** Three letters apart,
-   same prefix, both meaning roughly "meaning". The concepts are right; the cost
-   is in imports and review. `treebank`/`typebank` as a matched pair over the same
-   leaf avoids it entirely and makes "a typebank is what it produces" literal.
-5. **Do dialect rewrite tables become pack data?** They live in
+4. **Do dialect rewrite tables become pack data?** They live in
    `treebank-parse` as code today. Shipping them in the pack would record a gap
    and its workaround together and let treebank emit both, at the cost of a
    richer pack format. Not decided.
-6. **What is the `Fit` distribution in a language with a real preprocessor
+5. **What is the `Fit` distribution in a language with a real preprocessor
    problem?** C against git is 99.5% exact, but C is the language where the two
    tools agree most. The number that would change the design is C# against
    `dotnet/dotnet`, where treebank has already measured 4,617 files whose grammar
    failure is caused only by conditional compilation. Cheap to run once a C#
    observer exists, and it should run before any consumer trusts a cross-tool join
    in C#.
-7. **Should an observation declare the node kind it expects?** The measurement
+6. **Should an observation declare the node kind it expects?** The measurement
    says kind mismatch, not structural misfit, is where the disagreements live —
    which suggests a `CallEdge` should say it expects a `call_expression` so the
    anchor can flag `errno`-shaped cases automatically. That means the schema
    naming grammar node kinds, which couples it to a specific pack's vocabulary.
    Undecided, and the coupling is the reason.
-8. **Is tier 1 worth having for anything but C?** Every tree-sitter observer is
+7. **Is tier 1 worth having for anything but C?** Every tree-sitter observer is
    tier 1, but tree-sitter observations are not compiler observations. If C is the
    only compiler in tier 1, the tier distinction may be one language wearing a
    general name.
