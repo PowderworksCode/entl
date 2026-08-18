@@ -10,8 +10,8 @@ mod workspace;
 pub use artifact::Artifact;
 pub use codebase::{CodebaseInventory, CodebaseTree};
 pub use diagnostic::{Diagnostic, DiagnosticKind};
-pub use file::{FileEntry, LanguageDetection, LanguageEvidence};
-pub use id::{ArtifactId, EcosystemId, LanguageId, PackageId, ProjectFacetId, WorkspaceId};
+pub use file::FileEntry;
+pub use id::{PackageId, WorkspaceId};
 pub use package::{
     Dependency, DependencyKind, DependencyResolution, DependencySource, Manifest, ManifestKind,
     Package, PackageKind, PackageLanguage, PackageScript, ResolvedPackage,

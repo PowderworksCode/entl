@@ -3,11 +3,12 @@ use std::path::{Component, Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Artifact, ArtifactId, DependencyResolution, Diagnostic, FileEntry, Manifest, Package,
-    PackageId, Project, Workspace, WorkspaceId,
+    Artifact, DependencyResolution, Diagnostic, FileEntry, Manifest, Package, PackageId, Project,
+    Workspace, WorkspaceId,
 };
-use crate::LanguageProfile;
 use crate::{Error, Result};
+use langbank::ArtifactId;
+use langbank::LanguageProfile;
 
 /// The file-level result of walking a local codebase, before manifest and
 /// package analysis. Paths are root-relative and content remains lazy.

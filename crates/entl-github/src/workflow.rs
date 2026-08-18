@@ -1,10 +1,8 @@
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
-use entl_codebase::{
-    ArtifactId, CodebaseInventory, LanguageId, Package, PackageKind, TaskKind, ToolId, Workspace,
-    WorkspaceKind, classify_tool, normalize_invocation,
-};
+use entl_codebase::{CodebaseInventory, Package, PackageKind, Workspace, WorkspaceKind};
+use langbank::{ArtifactId, LanguageId, TaskKind, ToolId, classify_tool, normalize_invocation};
 use serde_yaml_ng::Value;
 
 use crate::model::deduplicate_tasks;

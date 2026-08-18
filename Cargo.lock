@@ -528,6 +528,7 @@ dependencies = [
  "globset",
  "ignore",
  "inventory",
+ "langbank",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -542,6 +543,7 @@ version = "0.0.0"
 dependencies = [
  "entl-codebase",
  "inventory",
+ "langbank",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -562,6 +564,7 @@ name = "entl-tree-sitter"
 version = "0.0.0"
 dependencies = [
  "entl-codebase",
+ "langbank",
  "serde",
  "sha2",
  "tempfile",
@@ -879,6 +882,16 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "langbank"
+version = "0.0.0"
+source = "git+https://github.com/PowderworksCode/langbank?branch=main#c28e3320a5c4c0ca36c708b52712184e2e70dc2c"
+dependencies = [
+ "inventory",
+ "serde",
+ "toml",
 ]
 
 [[package]]

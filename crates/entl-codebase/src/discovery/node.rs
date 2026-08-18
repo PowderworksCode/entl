@@ -9,9 +9,10 @@ use super::{
     ManifestFacts, WorkspaceSpec, package_id, registry, workspace_id,
 };
 use crate::{
-    Dependency, DependencyKind, DependencySource, Diagnostic, DiagnosticKind, EcosystemId,
-    Manifest, ManifestKind, Package, PackageKind, PackageScript, Workspace, WorkspaceKind,
+    Dependency, DependencyKind, DependencySource, Diagnostic, DiagnosticKind, Manifest,
+    ManifestKind, Package, PackageKind, PackageScript, Workspace, WorkspaceKind,
 };
+use langbank::EcosystemId;
 
 #[derive(Debug, Default, Deserialize)]
 struct NodeManifest {

@@ -7,12 +7,15 @@ mod cargo;
 mod node;
 
 use crate::{
-    Artifact, ArtifactProfile, BINARY_ARTIFACT, CodebaseInventory, DependencyResolution,
-    Diagnostic, DiagnosticKind, EcosystemId, FileEntry, InventoryOptions, LanguageId, Manifest,
-    Package, PackageId, PackageKind, PackageLanguage, Project, ProjectFacetId, Result, Workspace,
-    WorkspaceId, WorkspaceKind, artifact_profile, artifact_profiles, walk,
+    Artifact, CodebaseInventory, DependencyResolution, Diagnostic, DiagnosticKind, FileEntry,
+    InventoryOptions, Manifest, Package, PackageId, PackageKind, PackageLanguage, Project, Result,
+    Workspace, WorkspaceId, WorkspaceKind, walk,
 };
-use crate::{LanguageRole, ecosystem_profile, language_profile, language_profiles};
+use langbank::{
+    ArtifactProfile, BINARY_ARTIFACT, EcosystemId, LanguageId, ProjectFacetId, artifact_profile,
+    artifact_profiles,
+};
+use langbank::{LanguageRole, ecosystem_profile, language_profile, language_profiles};
 
 pub use registry_inventory as registry;
 

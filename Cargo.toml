@@ -20,6 +20,10 @@ license = "MIT"
 repository = "https://github.com/PowderworksCode/entl"
 
 [workspace.dependencies]
+# The language/ecosystem/tool registries — the four-repo decomposition's leaf.
+# Anything that needs language vocabulary takes it from here directly; entl
+# does not re-export it.
+langbank = { git = "https://github.com/PowderworksCode/langbank", branch = "main" }
 globset = "0.4"
 ignore = "0.4"
 registry-inventory = { package = "inventory", version = "0.3" }

@@ -9,7 +9,6 @@ mod compiler;
 mod discovery;
 mod error;
 mod model;
-mod profiles;
 mod walk;
 
 pub use compiler::{CompilerObservation, observe_rust_compiler};
@@ -19,29 +18,15 @@ pub use discovery::{
 };
 pub use error::{Error, Result};
 pub use model::{
-    Artifact, ArtifactId, CodebaseInventory, CodebaseTree, Dependency, DependencyKind,
-    DependencyResolution, DependencySource, Diagnostic, DiagnosticKind, EcosystemId, FileEntry,
-    LanguageDetection, LanguageEvidence, LanguageId, Manifest, ManifestKind, Package, PackageId,
-    PackageKind, PackageLanguage, PackageScript, Project, ProjectFacetId, ResolvedPackage,
-    Workspace, WorkspaceId, WorkspaceKind,
+    Artifact, CodebaseInventory, CodebaseTree, Dependency, DependencyKind, DependencyResolution,
+    DependencySource, Diagnostic, DiagnosticKind, FileEntry, Manifest, ManifestKind, Package,
+    PackageId, PackageKind, PackageLanguage, PackageScript, Project, ResolvedPackage, Workspace,
+    WorkspaceId, WorkspaceKind,
 };
-pub use profiles::{
-    ArgumentPattern, ArtifactProfile, ArtifactRegistration, BINARY_ARTIFACT, BUN_ECOSYSTEM,
-    CARGO_ECOSYSTEM, CODESPELL, COMPONENT_HOST, CSS_LANGUAGE, CiWorkload, CommandPattern,
-    CommentSyntax, DependencyPinPolicy, DependencyPinStatus, DependencyPinSyntax, EcosystemProfile,
-    EcosystemRegistration, EcosystemRole, JAVASCRIPT_LANGUAGE, LESS_LANGUAGE, LanguageConventions,
-    LanguageFacet, LanguageFacetRegistration, LanguageProfile, LanguageRegistration, LanguageRole,
-    LanguageVerbosity, ManifestSelection, NAPI_ARTIFACT, NPM_ECOSYSTEM, PNPM_ECOSYSTEM,
-    RUST_LANGUAGE, SCSS_LANGUAGE, SHELL_LANGUAGE, SITE_ARTIFACT, STRUCTURED_CODE, STYLE_HOST,
-    STYLELINT, TAURI_ARTIFACT, TYPESCRIPT_LANGUAGE, TaskKind, TestLayoutDefaults,
-    TestRetryConfiguration, TestRetryProfile, TestRetrySignal, ToolId, ToolProfile,
-    ToolRegistration, TraversalDirectory, TraversalDirectoryRegistration, TypecheckConvention,
-    VALE, VERBOSITY_BASELINE, VERBOSITY_CORPUS, VERBOSITY_CORPUS_REVISION, VerbosityRatio,
-    YARN_ECOSYSTEM, artifact_profile, artifact_profiles, classify_tool, comment_syntax,
-    comment_syntax_for_extension, detect_language, ecosystem_profile, ecosystem_profiles,
-    language_conventions, language_facet, language_facets, language_profile,
-    language_profile_for_extension, language_profiles, normalize_invocation,
-    registry as profile_registry, tool_profile, tool_profiles, traversal_directories, verbosity,
-    verbosity_ratio, verbosity_ratios,
-};
+// No language vocabulary is re-exported here. The registries that used to be
+// src/profiles/ are langbank's — 827 languages against this module's eight,
+// checked against eleven upstreams on a schedule — and code that needs a
+// LanguageProfile, an EcosystemProfile or a detection takes it from langbank
+// directly. entl's public surface is what entl owns: walking, inventory,
+// manifests, packages, workspaces.
 pub use walk::{InventoryOptions, walk};

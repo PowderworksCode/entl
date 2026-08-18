@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use entl_codebase::{
-    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, CodebaseInventory, EcosystemProfile, NPM_ECOSYSTEM,
-    PNPM_ECOSYSTEM, YARN_ECOSYSTEM,
+use entl_codebase::CodebaseInventory;
+use langbank::{
+    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, EcosystemProfile, NPM_ECOSYSTEM, PNPM_ECOSYSTEM, YARN_ECOSYSTEM,
 };
 use serde_yaml_ng::Value;
 

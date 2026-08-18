@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Typed GitHub repository facts derived from an entl-codebase inventory."
 
 [dependencies]
+langbank.workspace = true
 entl-codebase = { path = "../entl-codebase" }
 registry-inventory.workspace = true
 serde.workspace = true

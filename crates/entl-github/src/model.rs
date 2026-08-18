@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::PathBuf;
 
-use entl_codebase::{ArtifactId, LanguageId, TaskKind, ToolId};
+use langbank::{ArtifactId, LanguageId, TaskKind, ToolId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -265,7 +265,7 @@ impl GithubInventory {
         has_task(&self.workflows, language, kind)
     }
 
-    pub fn runs_tool(&self, profile: &entl_codebase::ToolProfile) -> bool {
+    pub fn runs_tool(&self, profile: &langbank::ToolProfile) -> bool {
         self.tool_invocations
             .iter()
             .any(|invocation| invocation.runs_on_changes && invocation.tool.as_str() == profile.id)

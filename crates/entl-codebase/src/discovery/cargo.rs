@@ -9,10 +9,11 @@ use super::{
     ManifestFacts, WorkspaceSpec, normalize_relative, package_id, registry, workspace_id,
 };
 use crate::{
-    Artifact, BINARY_ARTIFACT, Dependency, DependencyKind, DependencyResolution, DependencySource,
-    Diagnostic, DiagnosticKind, EcosystemId, Manifest, ManifestKind, Package, PackageKind,
-    ResolvedPackage, Workspace, WorkspaceKind,
+    Artifact, Dependency, DependencyKind, DependencyResolution, DependencySource, Diagnostic,
+    DiagnosticKind, Manifest, ManifestKind, Package, PackageKind, ResolvedPackage, Workspace,
+    WorkspaceKind,
 };
+use langbank::{BINARY_ARTIFACT, EcosystemId};
 
 #[derive(Debug, Default, Deserialize)]
 struct CargoManifest {
