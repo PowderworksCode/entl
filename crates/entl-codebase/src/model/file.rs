@@ -2,22 +2,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::{LanguageId, PackageId};
-use crate::LanguageProfile;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum LanguageEvidence {
-    Extension { extension: String },
-    Filename { filename: String },
-    Shebang { interpreter: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LanguageDetection {
-    pub language: LanguageId,
-    pub evidence: Vec<LanguageEvidence>,
-}
+use super::PackageId;
+use langbank::LanguageDetection;
+use langbank::LanguageProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileEntry {
@@ -39,7 +26,7 @@ impl FileEntry {
     pub fn has_language_profile(&self, language: &LanguageProfile) -> bool {
         self.language
             .as_ref()
-            .and_then(LanguageDetection::profile)
+            .and_then(|detection| langbank::language_profile(detection.language.as_str()))
             .is_some_and(|candidate| std::ptr::eq(candidate, language))
     }
 }

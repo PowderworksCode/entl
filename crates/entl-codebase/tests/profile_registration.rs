@@ -1,9 +1,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use entl_codebase::{
+use langbank::{
     EcosystemProfile, EcosystemRegistration, EcosystemRole, LanguageConventions, LanguageFacet,
     LanguageFacetRegistration, LanguageProfile, LanguageRegistration, LanguageRole,
     ManifestSelection, TestLayoutDefaults, ecosystem_profile, language_conventions, language_facet,
-    language_profile, profile_registry,
+    language_profile, registry as profile_registry,
 };
 
 static FIXTURE_FACET: LanguageFacet = LanguageFacet {
@@ -28,11 +28,15 @@ static FIXTURE_LANGUAGE: LanguageProfile = LanguageProfile {
             test_root: "checks",
             test_suffixes: &[".check"],
         },
-        inline_test_detector: |_| None,
+        // Rules are data now rather than a function pointer — that change is
+        // what let the profiles become TOML in the first place.
+        inline_test: &[],
     }),
     config_files: &[],
     package_dependencies: &[],
     supersedes: &[],
+    groups_under: None,
+    primary_extensions: &[],
 };
 
 profile_registry::submit! { LanguageFacetRegistration(&FIXTURE_FACET) }
@@ -44,11 +48,14 @@ static POLYGLOT: EcosystemProfile = EcosystemProfile {
     roles: &[EcosystemRole::BuildSystem],
     implied_languages: &[],
     manifest: None,
+    alternate_manifests: &[],
     lockfiles: &[],
     selector_files: &[],
     gitignore_patterns: &[],
     manifest_selection: ManifestSelection::Default,
     dependency_pins: None,
+    registry: None,
+    origin: langbank::Origin::UNKNOWN,
 };
 
 profile_registry::submit! {

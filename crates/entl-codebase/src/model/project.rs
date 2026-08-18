@@ -3,7 +3,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::{EcosystemId, PackageId, PackageLanguage, ProjectFacetId};
+use super::{PackageId, PackageLanguage};
+use langbank::{EcosystemId, ProjectFacetId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {

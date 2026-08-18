@@ -2,11 +2,9 @@
 use std::fs;
 use std::path::Path;
 
-use entl_codebase::{
-    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, CODESPELL, InventoryOptions, TaskKind, VALE,
-    inspect as inspect_codebase,
-};
+use entl_codebase::{InventoryOptions, inspect as inspect_codebase};
 use entl_github::{dependabot_ecosystem_profile, inspect};
+use langbank::{BUN_ECOSYSTEM, CARGO_ECOSYSTEM, CODESPELL, TaskKind, VALE};
 
 fn write(root: &Path, path: &str, content: &str) {
     let path = root.join(path);

@@ -3,7 +3,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::{EcosystemId, LanguageId, PackageId, WorkspaceId};
+use super::{PackageId, WorkspaceId};
+use langbank::{EcosystemId, LanguageId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]

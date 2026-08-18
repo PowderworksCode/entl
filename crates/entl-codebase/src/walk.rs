@@ -5,10 +5,8 @@ use std::path::{Path, PathBuf};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
 
-use crate::{
-    CodebaseTree, Diagnostic, DiagnosticKind, Error, FileEntry, Result, TraversalDirectory,
-    detect_language, traversal_directories,
-};
+use crate::{CodebaseTree, Diagnostic, DiagnosticKind, Error, FileEntry, Result};
+use langbank::{TraversalDirectory, detect_language, traversal_directories};
 
 #[derive(Debug, Clone)]
 pub struct InventoryOptions {

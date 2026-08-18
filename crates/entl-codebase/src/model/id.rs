@@ -1,7 +1,17 @@
+//! Identifiers for the things entl itself owns: packages and workspaces.
+//!
+//! Languages, artifacts, ecosystems and project facets are langbank's to name;
+//! code that needs those identifiers takes `langbank::LanguageId` and friends
+//! directly — entl does not re-export them. The macro here is private on
+//! purpose: it mints entl's two ids and nothing else, and the convention it
+//! encodes (ordered, hashable, serialised as a bare string) matches langbank's
+//! so the two families read the same on disk.
+
 use serde::{Deserialize, Serialize};
 
 macro_rules! string_id {
-    ($name:ident) => {
+    ($(#[$meta:meta])* $name:ident) => {
+        $(#[$meta])*
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $name(String);
@@ -36,9 +46,11 @@ macro_rules! string_id {
     };
 }
 
-string_id!(LanguageId);
-string_id!(ArtifactId);
-string_id!(EcosystemId);
-string_id!(PackageId);
-string_id!(WorkspaceId);
-string_id!(ProjectFacetId);
+string_id!(
+    /// A package within a codebase, as entl inventories it.
+    PackageId
+);
+string_id!(
+    /// A workspace within a codebase, as entl inventories it.
+    WorkspaceId
+);

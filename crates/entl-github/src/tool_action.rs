@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
-use entl_codebase::{CODESPELL, ToolId, ToolProfile, VALE};
+use langbank::{CODESPELL, ToolId, ToolProfile, VALE};
 
 use crate::{Workflow, WorkflowToolInvocation, WorkflowToolSource};
 

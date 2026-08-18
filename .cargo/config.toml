@@ -1,0 +1,4 @@
+[net]
+# Hand git fetches to the git CLI: same proxies, same credential helpers, same
+# behaviour as every other git operation on the machine running the build.
+git-fetch-with-cli = true

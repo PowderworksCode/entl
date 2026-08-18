@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use entl_codebase::{LanguageProfile, language_profile};
+use langbank::{LanguageProfile, language_profile};
 use sha2::{Digest, Sha256};
 
 use crate::{Error, MANIFEST_FILENAME, ParserPackManifest, Result};

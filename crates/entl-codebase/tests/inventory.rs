@@ -3,10 +3,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use entl_codebase::{
-    DiagnosticKind, EcosystemId, InventoryOptions, LanguageEvidence, PackageId, SHELL_LANGUAGE,
-    WorkspaceId, inspect, walk,
-};
+use entl_codebase::{DiagnosticKind, InventoryOptions, PackageId, WorkspaceId, inspect, walk};
+use langbank::{EcosystemId, LanguageEvidence, SHELL_LANGUAGE};
 
 fn write(root: &Path, path: &str, content: &str) {
     let path = root.join(path);

@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use entl_codebase::{InventoryOptions, walk};
 
-use crate::{LoadedParser, ParsedFile, ParserCatalog, ParserRuntime, Result};
+use crate::{
+    ExpectsParserPack as _, LoadedParser, ParsedFile, ParserCatalog, ParserRuntime, Result,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseDiagnostic {
