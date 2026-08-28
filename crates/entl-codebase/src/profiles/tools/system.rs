@@ -1,3 +1,5 @@
+use crate::SHELL_LANGUAGE;
+
 use super::super::{CiWorkload, CommandPattern, TaskKind, ToolProfile, ToolRegistration};
 
 static SYSTEM_PACKAGES: ToolProfile = ToolProfile {
@@ -22,5 +24,31 @@ static DOCKER: ToolProfile = ToolProfile {
     test_retry: None,
 };
 
+pub static SHELLCHECK: ToolProfile = ToolProfile {
+    id: "shellcheck",
+    programs: &["shellcheck"],
+    languages: &[&SHELL_LANGUAGE],
+    commands: &[CommandPattern::tasks(&[], &[TaskKind::Lint])],
+    configuration_files: &[".shellcheckrc"],
+    package_json_keys: &[],
+    ci_workload: CiWorkload::Light,
+    test_retry: None,
+};
+
+// Static analysis of the workflows themselves; commonly run as `uvx zizmor`,
+// which normalize_invocation unwraps like the JavaScript runners.
+pub static ZIZMOR: ToolProfile = ToolProfile {
+    id: "zizmor",
+    programs: &["zizmor"],
+    languages: &[],
+    commands: &[CommandPattern::tasks(&[], &[TaskKind::Lint])],
+    configuration_files: &["zizmor.yml", ".github/zizmor.yml"],
+    package_json_keys: &[],
+    ci_workload: CiWorkload::Light,
+    test_retry: None,
+};
+
 crate::profiles::registry::submit! { ToolRegistration(&SYSTEM_PACKAGES) }
 crate::profiles::registry::submit! { ToolRegistration(&DOCKER) }
+crate::profiles::registry::submit! { ToolRegistration(&SHELLCHECK) }
+crate::profiles::registry::submit! { ToolRegistration(&ZIZMOR) }

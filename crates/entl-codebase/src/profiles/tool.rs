@@ -266,16 +266,38 @@ pub fn normalize_invocation(tokens: &[String]) -> Option<(String, Vec<String>)> 
     }
     let program = executable_name(tokens.first()?)?;
     let arguments = tokens[1..].to_vec();
-    match (program.as_str(), arguments.as_slice()) {
-        ("npx" | "bunx", [wrapped, rest @ ..]) => Some((executable_name(wrapped)?, rest.to_vec())),
+    let (program, arguments) = match (program.as_str(), arguments.as_slice()) {
+        ("npx" | "bunx" | "uvx", [wrapped, rest @ ..]) => {
+            (versionless_executable_name(wrapped)?, rest.to_vec())
+        }
         ("npm" | "pnpm", [exec, wrapped, rest @ ..]) if exec == "exec" => {
-            Some((executable_name(wrapped)?, rest.to_vec()))
+            (versionless_executable_name(wrapped)?, rest.to_vec())
         }
         ("yarn", [dlx, wrapped, rest @ ..]) if dlx == "dlx" => {
-            Some((executable_name(wrapped)?, rest.to_vec()))
+            (versionless_executable_name(wrapped)?, rest.to_vec())
         }
-        _ => Some((program, arguments)),
+        _ => (program, arguments),
+    };
+    // A cargo subcommand that is not built in runs an external `cargo-<name>`
+    // binary; when a registered tool claims that binary, the invocation is that
+    // tool's, not cargo's. `+toolchain` selects a toolchain, never a subcommand.
+    if program == "cargo" {
+        let mut stripped = arguments.as_slice();
+        while stripped.first().is_some_and(|first| first.starts_with('+')) {
+            stripped = &stripped[1..];
+        }
+        if let [subcommand, rest @ ..] = stripped {
+            let external = format!("cargo-{subcommand}");
+            if tool_profiles()
+                .iter()
+                .any(|profile| profile.programs.contains(&external.as_str()))
+            {
+                return Some((external, rest.to_vec()));
+            }
+        }
+        return Some((program, stripped.to_vec()));
     }
+    Some((program, arguments))
 }
 
 fn executable_name(program: &str) -> Option<String> {
@@ -283,4 +305,14 @@ fn executable_name(program: &str) -> Option<String> {
         .file_name()
         .and_then(|name| name.to_str())
         .map(ToOwned::to_owned)
+}
+
+/// A runner-wrapped executable may pin a version (`zizmor@1.14.2`,
+/// `@scope/tool@2`); the version is not part of the name.
+fn versionless_executable_name(token: &str) -> Option<String> {
+    let name = executable_name(token)?;
+    match name.rfind('@') {
+        Some(0) | None => Some(name),
+        Some(at) => Some(name[..at].to_owned()),
+    }
 }
