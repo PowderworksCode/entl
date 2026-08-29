@@ -223,7 +223,7 @@ member patterns that match no discovered package.
 This distinction lets policy consumers report an honest `error` for the affected
 scope without losing unrelated codebase facts.
 
-The same principle governs observation. An absent compiler, an unparseable file,
+The same principle governs observation. An absent compiler, an unparsable file,
 or an unresolved name is a diagnostic carried alongside the facts that survived,
 never a silent empty result.
 

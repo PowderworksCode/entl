@@ -1,0 +1,6 @@
+# Fixture and corpus directories are test inputs, not authored prose; their
+# bytes are what the tests exercise, so codespell must not rewrite them.
+# "infact" is a sibling project in this fleet, not a misspelling of "in fact".
+[codespell]
+skip = ./crates/*/tests/fixtures,./tools/verbosity/src/corpus
+ignore-words-list = infact
