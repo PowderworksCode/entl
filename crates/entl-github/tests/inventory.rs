@@ -672,3 +672,56 @@ jobs:
     assert!(github.runs_tool(&HAWK));
     assert!(github.runs_tool(&SHELLCHECK));
 }
+
+#[test]
+fn matrix_jobs_record_which_needs_outputs_feed_the_expansion() {
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        temp.path(),
+        ".github/workflows/ci.yml",
+        r#"on: pull_request
+jobs:
+  discover:
+    outputs:
+      grammars: ${{ steps.list.outputs.grammars }}
+    steps:
+      - id: list
+        run: echo grammars='["python"]' >> "$GITHUB_OUTPUT"
+  gates:
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix:
+        grammar: ${{ fromJSON(needs.discover.outputs.grammars) }}
+    steps:
+      - run: echo ${{ matrix.grammar }}
+  literal:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - run: echo ${{ matrix.os }}
+  plain:
+    steps:
+      - run: echo plain
+"#,
+    );
+    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
+    let github = inspect(&codebase);
+    let workflow = &github.workflows[0];
+    let job = |id: &str| workflow.jobs.iter().find(|job| job.id == id).unwrap();
+    let gates = job("gates").matrix.as_ref().unwrap();
+    assert_eq!(
+        gates.from_needs,
+        std::collections::BTreeSet::from(["discover".to_owned()])
+    );
+    assert!(
+        job("literal")
+            .matrix
+            .as_ref()
+            .unwrap()
+            .from_needs
+            .is_empty()
+    );
+    assert!(job("plain").matrix.is_none());
+}

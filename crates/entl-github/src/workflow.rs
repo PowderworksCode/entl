@@ -180,6 +180,7 @@ fn parse_workflow(codebase: &CodebaseInventory, path: &Path) -> Result<Workflow,
                 .and_then(Value::as_str)
                 .map(str::to_owned),
             steps: workflow_steps,
+            matrix: job_matrix(job),
         });
     }
     deduplicate_tasks(&mut tasks);
@@ -574,4 +575,44 @@ fn string_set(value: &Value) -> BTreeSet<String> {
 
 fn mapping_value<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     value.as_mapping()?.get(Value::String(key.to_owned()))
+}
+
+/// The job's `strategy.matrix`, reduced to what scoping analysis needs: which
+/// needs-jobs the matrix expansion reads outputs from. The expressions live in
+/// scalar values anywhere inside the matrix node (`${{ fromJSON(
+/// needs.discover.outputs.grammars) }}`), so every scalar is scanned.
+fn job_matrix(job: &Value) -> Option<crate::WorkflowMatrix> {
+    let matrix = mapping_value(mapping_value(job, "strategy")?, "matrix")?;
+    let mut from_needs = BTreeSet::new();
+    collect_needs_references(matrix, &mut from_needs);
+    Some(crate::WorkflowMatrix { from_needs })
+}
+
+fn collect_needs_references(value: &Value, found: &mut BTreeSet<String>) {
+    match value {
+        Value::String(text) => {
+            let mut rest = text.as_str();
+            while let Some(at) = rest.find("needs.") {
+                rest = &rest[at + "needs.".len()..];
+                let id: String = rest
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+                    .collect();
+                if !id.is_empty() && rest[id.len()..].starts_with(".outputs") {
+                    found.insert(id);
+                }
+            }
+        }
+        Value::Sequence(values) => {
+            for value in values {
+                collect_needs_references(value, found);
+            }
+        }
+        Value::Mapping(mapping) => {
+            for (_, value) in mapping {
+                collect_needs_references(value, found);
+            }
+        }
+        _ => {}
+    }
 }
