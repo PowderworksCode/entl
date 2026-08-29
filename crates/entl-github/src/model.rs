@@ -129,6 +129,16 @@ pub struct WorkflowJob {
     pub timeout_minutes: Option<String>,
     pub uses: Option<String>,
     pub steps: Vec<WorkflowStep>,
+    /// Present when the job declares a `strategy.matrix`.
+    #[serde(default)]
+    pub matrix: Option<WorkflowMatrix>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct WorkflowMatrix {
+    /// Job ids whose outputs feed the matrix through a `needs.<id>.outputs`
+    /// expression. Empty for a literal matrix.
+    pub from_needs: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

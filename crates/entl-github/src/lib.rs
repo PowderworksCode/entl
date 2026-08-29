@@ -31,8 +31,8 @@ pub use model::{
     ActionPinStatus, ActionReference, CodeownersConfiguration, CodeownersInventory, CodeownersRule,
     ConventionalCommitEnforcement, ConventionalCommitInventory, ConventionalCommitTarget,
     DependabotConfiguration, DependabotInventory, DependabotUpdate, Diagnostic, GithubInventory,
-    PackageScriptInvocation, TaskInvocation, Workflow, WorkflowCommand, WorkflowJob, WorkflowStep,
-    WorkflowToolInvocation, WorkflowToolSource, has_task,
+    PackageScriptInvocation, TaskInvocation, Workflow, WorkflowCommand, WorkflowJob,
+    WorkflowMatrix, WorkflowStep, WorkflowToolInvocation, WorkflowToolSource, has_task,
 };
 pub use pin::{ACTION_PINS, ActionPinPolicy};
 pub use remote::{
