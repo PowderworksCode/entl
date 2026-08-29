@@ -31,3 +31,29 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+
+  # Two crates are deliberately outside the workspace, so `--workspace` above
+  # never reaches them and they can rot unnoticed. Their own job, because
+  # entl-rust-mir installs a second toolchain and that is not the gate's cost
+  # to carry.
+  outside-the-workspace:
+    name: outside the workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            tools/verbosity
+            crates/entl-rust-mir
+      # Stable, like the rest of the repository; only the corpus it reads is
+      # unusual, and building it needs none of that.
+      - run: cargo build
+        working-directory: tools/verbosity
+      # Its own rust-toolchain.toml pins the nightly and names rustc-dev and
+      # rust-src, which rustup installs on this first invocation. That is the
+      # expensive part of this job and the reason the crate is not in the
+      # workspace in the first place.
+      - run: cargo build
+        working-directory: crates/entl-rust-mir

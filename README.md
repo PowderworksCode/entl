@@ -225,6 +225,13 @@ evidence.
 
 ## Development
 
+`scripts/dev.sh` points git at the committed hooks and builds the workspace and
+`tools/verbosity`. `crates/entl-rust-mir` is skipped unless its pinned nightly
+is installed, a gigabyte of toolchain; `ENTL_DEV_RUST_MIR=1 scripts/dev.sh`
+builds it anyway.
+
+The gate:
+
 ```sh
 cargo fmt --all --check
 cargo test --workspace
