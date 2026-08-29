@@ -1,6 +1,6 @@
 pub(crate) mod documentation;
 mod javascript;
-mod rust;
+pub(crate) mod rust;
 pub(crate) mod stylesheet;
-mod system;
+pub(crate) mod system;
 mod tauri;

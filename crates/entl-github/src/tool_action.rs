@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
-use entl_codebase::{CODESPELL, ToolId, ToolProfile, VALE};
+use entl_codebase::{CODESPELL, SHELLCHECK, ToolId, ToolProfile, VALE, ZIZMOR};
 
 use crate::{Workflow, WorkflowToolInvocation, WorkflowToolSource};
 
@@ -24,8 +24,20 @@ static VALE_ACTION: ToolActionProfile = ToolActionProfile {
     actions: &["errata-ai/vale-action"],
 };
 
+static SHELLCHECK_ACTION: ToolActionProfile = ToolActionProfile {
+    tool: &SHELLCHECK,
+    actions: &["ludeeus/action-shellcheck", "reviewdog/action-shellcheck"],
+};
+
+static ZIZMOR_ACTION: ToolActionProfile = ToolActionProfile {
+    tool: &ZIZMOR,
+    actions: &["zizmorcore/zizmor-action"],
+};
+
 registry_inventory::submit! { ToolActionRegistration(&CODESPELL_ACTION) }
 registry_inventory::submit! { ToolActionRegistration(&VALE_ACTION) }
+registry_inventory::submit! { ToolActionRegistration(&SHELLCHECK_ACTION) }
+registry_inventory::submit! { ToolActionRegistration(&ZIZMOR_ACTION) }
 
 static PROFILES: LazyLock<Vec<&'static ToolActionProfile>> = LazyLock::new(|| {
     let mut profiles = registry_inventory::iter::<ToolActionRegistration>

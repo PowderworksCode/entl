@@ -3,8 +3,8 @@ use std::fs;
 use std::path::Path;
 
 use entl_codebase::{
-    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, CODESPELL, InventoryOptions, TaskKind, VALE,
-    inspect as inspect_codebase,
+    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, CODESPELL, HAWK, InventoryOptions, SHELLCHECK, TaskKind, VALE,
+    ZIZMOR, inspect as inspect_codebase,
 };
 use entl_github::{dependabot_ecosystem_profile, inspect};
 
@@ -647,4 +647,28 @@ jobs:
     assert_eq!(job.steps[0].label(), "Run tests");
     assert_eq!(job.steps[1].label(), "codecov/codecov-action@v4");
     assert_eq!(job.steps[1].inputs["version"], "4");
+}
+
+#[test]
+fn lint_tools_are_typed_through_runners_subcommands_and_actions() {
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        temp.path(),
+        ".github/workflows/lint.yml",
+        r#"on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: uvx zizmor@1.14.2 --format=github .
+      - run: cargo +1.98.0 hawk check -D warnings
+      - run: shellcheck scripts/*.sh
+      - uses: ludeeus/action-shellcheck@2.0.0
+      - uses: zizmorcore/zizmor-action@v1
+"#,
+    );
+    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
+    let github = inspect(&codebase);
+    assert!(github.runs_tool(&ZIZMOR));
+    assert!(github.runs_tool(&HAWK));
+    assert!(github.runs_tool(&SHELLCHECK));
 }

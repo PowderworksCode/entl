@@ -38,6 +38,20 @@ static CARGO: ToolProfile = ToolProfile {
     }),
 };
 
+// Invoked as `cargo hawk`; normalize_invocation resolves the external cargo
+// subcommand to the `cargo-hawk` binary this profile claims. Heavy because it
+// drives the compiler over the whole workspace.
+pub static HAWK: ToolProfile = ToolProfile {
+    id: "hawk",
+    programs: &["cargo-hawk"],
+    languages: &[&RUST_LANGUAGE],
+    commands: &[CommandPattern::tasks(&[], &[TaskKind::Lint])],
+    configuration_files: &[],
+    package_json_keys: &[],
+    ci_workload: CiWorkload::Heavy,
+    test_retry: None,
+};
+
 static RUSTFMT: ToolProfile = ToolProfile {
     id: "rustfmt",
     programs: &["rustfmt"],
@@ -50,4 +64,5 @@ static RUSTFMT: ToolProfile = ToolProfile {
 };
 
 crate::profiles::registry::submit! { ToolRegistration(&CARGO) }
+crate::profiles::registry::submit! { ToolRegistration(&HAWK) }
 crate::profiles::registry::submit! { ToolRegistration(&RUSTFMT) }

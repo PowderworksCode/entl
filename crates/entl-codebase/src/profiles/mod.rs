@@ -42,7 +42,9 @@ pub use tool::{
     normalize_invocation, tool_profile, tool_profiles,
 };
 pub use tools::documentation::{CODESPELL, VALE};
+pub use tools::rust::HAWK;
 pub use tools::stylesheet::STYLELINT;
+pub use tools::system::{SHELLCHECK, ZIZMOR};
 pub use traversal::{TraversalDirectory, TraversalDirectoryRegistration, traversal_directories};
 pub use verbosity::{
     LanguageVerbosity, VERBOSITY_BASELINE, VERBOSITY_CORPUS, VERBOSITY_CORPUS_REVISION,
