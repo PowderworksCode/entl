@@ -575,6 +575,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "parquet",
+ "tempfile",
  "thiserror",
 ]
 

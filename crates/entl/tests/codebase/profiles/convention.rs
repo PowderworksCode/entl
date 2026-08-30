@@ -1,14 +1,9 @@
 // Tests for `src/codebase/profiles/convention.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use entl::codebase::{
-    CODESPELL, COMPONENT_HOST, CiWorkload, EcosystemRole, JAVASCRIPT_LANGUAGE, ManifestSelection,
-    RUST_LANGUAGE, SHELL_LANGUAGE, STRUCTURED_CODE, STYLE_HOST, STYLELINT, TYPESCRIPT_LANGUAGE,
-    VALE, artifact_profiles, ecosystem_profile, ecosystem_profiles, language_conventions,
-    language_facet, language_facets, language_profile, language_profiles, tool_profile,
-    tool_profiles, traversal_directories,
+    JAVASCRIPT_LANGUAGE, RUST_LANGUAGE, TYPESCRIPT_LANGUAGE, language_conventions,
+    language_profiles,
 };
-use std::collections::BTreeSet;
-use std::path::Path;
 
 #[test]
 fn language_conventions_are_colocated_with_profiles() {

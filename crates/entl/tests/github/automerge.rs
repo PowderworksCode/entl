@@ -1,6 +1,5 @@
 // Tests for `src/github/automerge.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use crate::support::*;
 
 #[test]
 fn dependabot_automerge_is_reported_as_structured_safeguards() {
