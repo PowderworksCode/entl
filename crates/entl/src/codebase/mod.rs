@@ -12,7 +12,7 @@ mod model;
 mod profiles;
 mod walk;
 
-pub use compiler::{CompilerObservation, observe_rust_compiler};
+pub use compiler::{CompilerObservation, observe_rust_compiler, parse_rustc};
 pub use discovery::{
     DiscoveryBuilder, DiscoveryHandler, DiscoveryHandlerRegistration, DiscoveryPhase,
     discovery_handlers, inspect, registry as discovery_registry,
