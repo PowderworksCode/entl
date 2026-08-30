@@ -11,6 +11,8 @@ mod discovery_cargo;
 mod discovery_mod;
 #[path = "codebase/discovery/node.rs"]
 mod discovery_node;
+#[path = "codebase/error.rs"]
+mod error;
 #[path = "codebase/model/artifact.rs"]
 mod model_artifact;
 #[path = "codebase/model/diagnostic.rs"]
@@ -19,8 +21,12 @@ mod model_diagnostic;
 mod model_file;
 #[path = "codebase/model/id.rs"]
 mod model_id;
+#[path = "codebase/model/package.rs"]
+mod model_package;
 #[path = "codebase/model/project.rs"]
 mod model_project;
+#[path = "codebase/model/workspace.rs"]
+mod model_workspace;
 #[path = "codebase/profiles/artifact.rs"]
 mod profiles_artifact;
 #[path = "codebase/profiles/artifacts.rs"]
@@ -93,6 +99,8 @@ mod profiles_languages_sql;
 mod profiles_languages_svelte;
 #[path = "codebase/profiles/languages/swift.rs"]
 mod profiles_languages_swift;
+#[path = "codebase/profiles/languages/syntax.rs"]
+mod profiles_languages_syntax;
 #[path = "codebase/profiles/languages/toml.rs"]
 mod profiles_languages_toml;
 #[path = "codebase/profiles/languages/typescript.rs"]

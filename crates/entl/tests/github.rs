@@ -1,4 +1,4 @@
-// The mirrored tests for src/github/, one file per module.
+// The mirrored tests for src/github/, one file per source module.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 #[path = "github/support.rs"]
 mod support;
@@ -13,6 +13,8 @@ mod codeowners;
 mod conventional;
 #[path = "github/dependabot.rs"]
 mod dependabot;
+#[path = "github/pin.rs"]
+mod pin;
 #[path = "github/remote.rs"]
 mod remote;
 #[path = "github/tool_action.rs"]
