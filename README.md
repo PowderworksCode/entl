@@ -4,7 +4,7 @@ Entl turns specific kinds of external data into typed Rust facts that can be
 inspected, shaped, and moved without first forcing them through a database or a
 stringly typed table interface.
 
-The first domain is a source codebase's present tree. `entl-codebase` walks a
+The first domain is a source codebase's present tree. `entl` walks a
 local checkout once and returns reusable facts about:
 
 - files, language-detection evidence, and lexical comment syntax;
@@ -32,9 +32,9 @@ text, an auditor can consume package/workspace structure, and a later
 tree-sitter adapter can turn identified source files into symbols and syntax
 facts.
 
-`entl-github` derives provider-specific facts from that reusable codebase
+`entl` derives provider-specific facts from that reusable codebase
 inventory. It recognizes GitHub Actions workflow files and triggers, expands
-package scripts, and uses `entl-codebase` tool profiles to produce typed test,
+package scripts, and uses `entl` tool profiles to produce typed test,
 lint, format, typecheck, and build invocations. It does not decide which tasks
 policy requires. Build invocations retain typed artifact outputs and exact
 package scopes, including Cargo workspace members.
@@ -47,17 +47,17 @@ deterministic enrichment handlers through `discovery_registry`.
 GitHub inspection is an explicit second step:
 
 ```rust
-let codebase = entl_codebase::inspect(".", &entl_codebase::InventoryOptions::default())?;
-let github = entl_github::inspect(&codebase);
+let codebase = entl::codebase::inspect(".", &entl::codebase::InventoryOptions::default())?;
+let github = entl::github::inspect(&codebase);
 
 for workflow in &github.workflows {
     println!("{}", workflow.path.display());
 }
-# Ok::<(), entl_codebase::Error>(())
+# Ok::<(), entl::codebase::Error>(())
 ```
 
 ```rust
-use entl_codebase::{InventoryOptions, inspect};
+use entl::codebase::{InventoryOptions, inspect};
 
 let codebase = inspect(".", &InventoryOptions::default())?;
 
@@ -69,20 +69,20 @@ for package in &codebase.packages {
         }
     }
 }
-# Ok::<(), entl_codebase::Error>(())
+# Ok::<(), entl::codebase::Error>(())
 ```
 
 A source scanner can avoid manifest parsing:
 
 ```rust
-use entl_codebase::{InventoryOptions, walk};
+use entl::codebase::{InventoryOptions, walk};
 
 let tree = walk(".", &InventoryOptions::default())?;
 for file in tree.files_with_language("rust") {
     let source = tree.read_text(&file.path)?;
     println!("{}: {} bytes", file.path.display(), source.len());
 }
-# Ok::<(), entl_codebase::Error>(())
+# Ok::<(), entl::codebase::Error>(())
 ```
 
 ## Runtime Tree-sitter parsers
@@ -129,8 +129,7 @@ queries differ would otherwise be indistinguishable.
 ## Workspace
 
 ```text
-crates/entl-codebase   typed codebase inventory and profiles
-crates/entl-github     typed GitHub workflow and automation facts
+crates/entl            typed codebase inventory, profiles, and GitHub facts
 crates/entl-semantics  span-anchored semantic observations, language neutral
 crates/entl-rust-mir   observes resolved Rust semantics by running as the compiler
 crates/entl-tree-sitter runtime-loaded Wasm parser packs
@@ -178,7 +177,7 @@ needs: `LanguageProfile::verbosity` for one language against the baseline, and
 `verbosity_ratio` for a pair as it was actually measured.
 
 ```rust
-use entl_codebase::{language_profile, verbosity_ratio};
+use entl::codebase::{language_profile, verbosity_ratio};
 
 let java = language_profile("java").unwrap().verbosity().unwrap();
 let python = language_profile("python").unwrap().verbosity().unwrap();

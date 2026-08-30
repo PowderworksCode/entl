@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Runtime-loadable Tree-sitter parser packs for Entl codebase facts."
 
 [dependencies]
-entl-codebase = { path = "../entl-codebase" }
+entl = { path = "../entl" }
 serde.workspace = true
 sha2.workspace = true
 thiserror.workspace = true

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use entl_codebase::{InventoryOptions, walk};
+use entl::codebase::{InventoryOptions, walk};
 
 use crate::{LoadedParser, ParsedFile, ParserCatalog, ParserRuntime, Result};
 

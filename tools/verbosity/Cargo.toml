@@ -16,5 +16,5 @@ name = "verbosity"
 path = "src/main.rs"
 
 [dependencies]
-entl-codebase = { path = "../../crates/entl-codebase" }
+entl = { path = "../../crates/entl" }
 serde_json = "1"

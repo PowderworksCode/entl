@@ -21,7 +21,7 @@ Entl's own work and fall under Entl's license.
 
 ## Verbosity corpora
 
-The verbosity numbers in `crates/entl-codebase/src/profiles/verbosity.rs` and
+The verbosity numbers in `crates/entl/src/codebase/profiles/verbosity.rs` and
 `docs/verbosity-*.md` are measured by `tools/verbosity` from one of three
 corpora, none of which is redistributed here.
 

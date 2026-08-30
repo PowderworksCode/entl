@@ -7,7 +7,7 @@ How much source text each profiled language needs for the same work, measured on
 
 The corpus is licensed under the MIT License. Entl redistributes no corpus source
 either way: the tool reads a checkout the operator downloads, and only the
-statistics on this page and in `crates/entl-codebase/src/profiles/verbosity.rs`
+statistics on this page and in `crates/entl/src/codebase/profiles/verbosity.rs`
 are checked in.
 
 ## Method

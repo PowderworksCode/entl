@@ -2,7 +2,7 @@
 //!
 //! Reads a local checkout of the Rosetta Code Data project, compares Entl's
 //! language profiles on the tasks they both implement, and regenerates
-//! `crates/entl-codebase/src/profiles/verbosity.rs` and `docs/verbosity-*.md`.
+//! `crates/entl/src/codebase/profiles/verbosity.rs` and `docs/verbosity-*.md`.
 //!
 //! Only derived statistics are written out. Rosetta Code's content is licensed
 //! under the GNU Free Documentation License 1.2, which Entl's MIT license
@@ -130,7 +130,7 @@ fn run() -> Result<(), String> {
 
     let table = options
         .root
-        .join("crates/entl-codebase/src/profiles/verbosity.rs");
+        .join("crates/entl/src/codebase/profiles/verbosity.rs");
     let document = options
         .root
         .join(format!("docs/verbosity-{}.md", source.id()));

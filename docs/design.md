@@ -29,12 +29,12 @@ They belong in one library because acquisition is the shared problem. Inventory
 decides which files exist and what language each is; observation needs that answer
 before it can choose a grammar or a compiler. A consumer almost always needs both.
 
-They are separate crate roots because they have different consumers and different
-rates of change. Nothing in `entl-semantics` depends on `entl-codebase`.
+They are separate roots because they have different consumers and different
+rates of change. Nothing in `entl-semantics` depends on `entl`.
 
 ## Codebase inventory
 
-`entl-codebase` exposes two layers over a source tree. `walk` produces an
+The `codebase` module exposes two layers over a source tree. `walk` produces an
 immutable `CodebaseTree` containing file facts, language evidence, scoped
 diagnostics, and lazy content access. `inspect` parses manifests and resolves
 packages, projects, ecosystems, workspaces, and package scripts on top of that
@@ -186,7 +186,7 @@ declines to give one.
 
 ## Repository and forge facts
 
-`entl-github` is a separate, optional domain adapter. Its `inspect` accepts a
+The `github` module is a separate, optional domain adapter. Its `inspect` accepts a
 completed `CodebaseInventory` and returns a `GithubInventory`; it does not walk
 the repository again and does not register a hidden codebase discovery handler.
 
@@ -197,14 +197,14 @@ registered tool profile, workflow location, package-relative working directory,
 applicable languages, artifact outputs, package scopes, and evidence. Expanding a
 package script retains its manifest as provenance.
 
-Tool profiles and command-to-task classification live in `entl-codebase` because
+Tool profiles and command-to-task classification live in `codebase` because
 those facts apply equally to local scripts, other CI providers, and GitHub
-Actions. `entl-github` uses those profiles while extracting workflow invocations;
-serialized task facts retain stable IDs at the boundary. The GitHub crate also
+Actions. `github` uses those profiles while extracting workflow invocations;
+serialized task facts retain stable IDs at the boundary. The `github` module also
 owns serializable remote repository, branch, security, and workflow-run fact
 types. API transports and policy-driven mutations remain consumer concerns.
 
-*Known conflation:* `entl-github` owns both the vocabulary of repository facts and
+*Known conflation:* `github` owns both the vocabulary of repository facts and
 the GitHub adapter that produces them. Those are different things, and separating
 them is cheap while there is one adapter and expensive once there are three. A
 neutral repository vocabulary with per-forge adapters is the intended shape.
@@ -229,7 +229,7 @@ never a silent empty result.
 
 ## Boundaries
 
-`entl-codebase` owns reusable codebase facts and profiles:
+`codebase` owns reusable codebase facts and profiles:
 
 - tree traversal and ignore semantics;
 - language identification, evidence, and shallow lexical facts;
@@ -250,7 +250,7 @@ provenance. Consumers own interpretation of the resulting concrete syntax trees.
 `entl-semantics` owns the observation vocabulary: what may be asked about a span,
 and how an answer is shaped. It owns no language.
 
-`entl-github` owns observed GitHub facts:
+`github` owns observed GitHub facts:
 
 - workflow-file recognition, parsing, and diagnostics;
 - package-script expansion into typed task invocations; and

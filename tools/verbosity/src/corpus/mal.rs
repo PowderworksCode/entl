@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use entl_codebase::comment_syntax;
+use entl::codebase::comment_syntax;
 
 use super::{Corpus, Samples};
 use crate::measure::{Measurement, measure};

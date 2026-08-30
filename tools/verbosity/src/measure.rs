@@ -1,11 +1,11 @@
 //! Reduces a source file to the bytes and lines that carry program text.
 //!
 //! Comments are stripped using the language's own [`CommentSyntax`] from
-//! `entl-codebase`, so the measurement follows Entl's language profiles rather
+//! `entl`, so the measurement follows Entl's language profiles rather
 //! than a second, drifting copy of them. String literals survive: they are
 //! program content, and a language that needs more of them is more verbose.
 
-use entl_codebase::CommentSyntax;
+use entl::codebase::CommentSyntax;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Measurement {
@@ -163,7 +163,7 @@ fn starts_with(characters: &[char], index: usize, marker: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use entl_codebase::comment_syntax;
+    use entl::codebase::comment_syntax;
 
     fn syntax(language: &str) -> &'static CommentSyntax {
         comment_syntax(language).expect("language has comment syntax")

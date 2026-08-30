@@ -1,0 +1,28 @@
+[package]
+name = "entl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Typed facts about a codebase and the GitHub repository around it: files, languages, packages, projects, workspaces, and the workflows and settings that surround them."
+readme = "README.md"
+keywords = ["codebase", "inventory", "github", "static-analysis"]
+categories = ["development-tools"]
+
+[dependencies]
+globset.workspace = true
+ignore.workspace = true
+registry-inventory.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+shell-words.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -3,7 +3,7 @@
 Measures how much source text each of Entl's profiled languages needs for the
 same task, and regenerates:
 
-- `crates/entl-codebase/src/profiles/verbosity.rs` — the checked-in table
+- `crates/entl/src/codebase/profiles/verbosity.rs` — the checked-in table
 - `docs/verbosity-<corpus>.md` — the method, the full matrix, and the caveats
 
 ## The two corpora
@@ -91,7 +91,7 @@ src/stats.rs           pairwise ratios, least-squares index, transitivity checks
 src/emit.rs            renders the generated table and the report
 ```
 
-`measure.rs` deliberately drives off `entl-codebase`'s `comment_syntax`. A
+`measure.rs` deliberately drives off `entl`'s `comment_syntax`. A
 second, private copy of every language's comment rules would drift from the
 profiles the numbers claim to describe.
 

@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use entl_codebase::{LanguageRole, comment_syntax, language_profile_for_extension};
+use entl::codebase::{LanguageRole, comment_syntax, language_profile_for_extension};
 
 use super::{Corpus, Samples};
 use crate::measure::{Measurement, measure};
