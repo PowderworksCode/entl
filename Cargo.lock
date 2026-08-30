@@ -522,8 +522,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
-name = "entl-codebase"
-version = "0.0.0"
+name = "entl"
+version = "0.1.0"
 dependencies = [
  "globset",
  "ignore",
@@ -531,27 +531,15 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "shell-words",
  "tempfile",
  "thiserror",
  "toml",
 ]
 
 [[package]]
-name = "entl-github"
-version = "0.0.0"
-dependencies = [
- "entl-codebase",
- "inventory",
- "serde",
- "serde_json",
- "serde_yaml_ng",
- "shell-words",
- "tempfile",
-]
-
-[[package]]
 name = "entl-semantics"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -559,9 +547,9 @@ dependencies = [
 
 [[package]]
 name = "entl-tree-sitter"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
- "entl-codebase",
+ "entl",
  "serde",
  "sha2",
  "tempfile",
@@ -572,7 +560,7 @@ dependencies = [
 
 [[package]]
 name = "entl-ts-observe"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "entl-semantics",
  "serde_json",
@@ -582,7 +570,7 @@ dependencies = [
 
 [[package]]
 name = "entl-zig-air"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -592,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "entl-zig-observe"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "entl-tree-sitter",
  "tree-sitter",

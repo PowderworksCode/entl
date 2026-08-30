@@ -3,7 +3,7 @@ use std::path::PathBuf;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
-    Codebase(#[from] entl_codebase::Error),
+    Codebase(#[from] entl::codebase::Error),
 
     #[error("could not read parser pack file {path}: {source}")]
     Read {
