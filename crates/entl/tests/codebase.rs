@@ -8,25 +8,31 @@ mod compiler;
 #[path = "codebase/discovery/cargo.rs"]
 mod discovery_cargo;
 #[path = "codebase/discovery/mod.rs"]
-mod discovery_mod;
+mod discovery_module;
 #[path = "codebase/discovery/node.rs"]
 mod discovery_node;
 #[path = "codebase/error.rs"]
 mod error;
 #[path = "codebase/model/artifact.rs"]
 mod model_artifact;
+#[path = "codebase/model/codebase.rs"]
+mod model_codebase;
 #[path = "codebase/model/diagnostic.rs"]
 mod model_diagnostic;
 #[path = "codebase/model/file.rs"]
 mod model_file;
 #[path = "codebase/model/id.rs"]
 mod model_id;
+#[path = "codebase/model/mod.rs"]
+mod model_module;
 #[path = "codebase/model/package.rs"]
 mod model_package;
 #[path = "codebase/model/project.rs"]
 mod model_project;
 #[path = "codebase/model/workspace.rs"]
 mod model_workspace;
+#[path = "codebase/mod.rs"]
+mod module;
 #[path = "codebase/profiles/artifact.rs"]
 mod profiles_artifact;
 #[path = "codebase/profiles/artifacts.rs"]
@@ -39,6 +45,8 @@ mod profiles_ecosystem;
 mod profiles_ecosystems_bun;
 #[path = "codebase/profiles/ecosystems/cargo.rs"]
 mod profiles_ecosystems_cargo;
+#[path = "codebase/profiles/ecosystems/mod.rs"]
+mod profiles_ecosystems_module;
 #[path = "codebase/profiles/ecosystems/npm.rs"]
 mod profiles_ecosystems_npm;
 #[path = "codebase/profiles/ecosystems/pnpm.rs"]
@@ -79,6 +87,8 @@ mod profiles_languages_less;
 mod profiles_languages_make;
 #[path = "codebase/profiles/languages/markdown.rs"]
 mod profiles_languages_markdown;
+#[path = "codebase/profiles/languages/mod.rs"]
+mod profiles_languages_module;
 #[path = "codebase/profiles/languages/php.rs"]
 mod profiles_languages_php;
 #[path = "codebase/profiles/languages/python.rs"]
@@ -112,13 +122,15 @@ mod profiles_languages_yaml;
 #[path = "codebase/profiles/languages/zig.rs"]
 mod profiles_languages_zig;
 #[path = "codebase/profiles/mod.rs"]
-mod profiles_mod;
+mod profiles_module;
 #[path = "codebase/profiles/tool.rs"]
 mod profiles_tool;
 #[path = "codebase/profiles/tools/documentation.rs"]
 mod profiles_tools_documentation;
 #[path = "codebase/profiles/tools/javascript.rs"]
 mod profiles_tools_javascript;
+#[path = "codebase/profiles/tools/mod.rs"]
+mod profiles_tools_module;
 #[path = "codebase/profiles/tools/rust.rs"]
 mod profiles_tools_rust;
 #[path = "codebase/profiles/tools/stylesheet.rs"]

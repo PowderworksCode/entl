@@ -13,6 +13,10 @@ mod codeowners;
 mod conventional;
 #[path = "github/dependabot.rs"]
 mod dependabot;
+#[path = "github/model.rs"]
+mod model;
+#[path = "github/mod.rs"]
+mod module;
 #[path = "github/pin.rs"]
 mod pin;
 #[path = "github/remote.rs"]
