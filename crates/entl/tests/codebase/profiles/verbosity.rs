@@ -1,3 +1,4 @@
+// Tests for `src/codebase/profiles/verbosity.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Checks the generated verbosity table against the profiles it describes.
 //!

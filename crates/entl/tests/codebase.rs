@@ -1,8 +1,4 @@
-// The mirrored tests for `src/codebase/`, one file per source module.
-//
-// A test target resolves `mod` against its own directory rather than a
-// subdirectory named after it, so each module states its path, and cargo
-// builds only top-level files under tests/ as targets.
+// The mirrored tests for src/codebase/, one file per source module.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 #[path = "codebase/support.rs"]
 mod support;
@@ -17,8 +13,22 @@ mod discovery_mod;
 mod discovery_node;
 #[path = "codebase/model/artifact.rs"]
 mod model_artifact;
+#[path = "codebase/model/diagnostic.rs"]
+mod model_diagnostic;
 #[path = "codebase/model/file.rs"]
 mod model_file;
+#[path = "codebase/model/id.rs"]
+mod model_id;
+#[path = "codebase/model/project.rs"]
+mod model_project;
+#[path = "codebase/profiles/artifact.rs"]
+mod profiles_artifact;
+#[path = "codebase/profiles/artifacts.rs"]
+mod profiles_artifacts;
+#[path = "codebase/profiles/convention.rs"]
+mod profiles_convention;
+#[path = "codebase/profiles/ecosystem.rs"]
+mod profiles_ecosystem;
 #[path = "codebase/profiles/ecosystems/bun.rs"]
 mod profiles_ecosystems_bun;
 #[path = "codebase/profiles/ecosystems/cargo.rs"]
@@ -29,6 +39,12 @@ mod profiles_ecosystems_npm;
 mod profiles_ecosystems_pnpm;
 #[path = "codebase/profiles/ecosystems/yarn.rs"]
 mod profiles_ecosystems_yarn;
+#[path = "codebase/profiles/facet.rs"]
+mod profiles_facet;
+#[path = "codebase/profiles/facets.rs"]
+mod profiles_facets;
+#[path = "codebase/profiles/language.rs"]
+mod profiles_language;
 #[path = "codebase/profiles/languages/c.rs"]
 mod profiles_languages_c;
 #[path = "codebase/profiles/languages/cpp.rs"]
@@ -87,6 +103,10 @@ mod profiles_languages_vue;
 mod profiles_languages_yaml;
 #[path = "codebase/profiles/languages/zig.rs"]
 mod profiles_languages_zig;
+#[path = "codebase/profiles/mod.rs"]
+mod profiles_mod;
+#[path = "codebase/profiles/tool.rs"]
+mod profiles_tool;
 #[path = "codebase/profiles/tools/documentation.rs"]
 mod profiles_tools_documentation;
 #[path = "codebase/profiles/tools/javascript.rs"]
@@ -99,5 +119,9 @@ mod profiles_tools_stylesheet;
 mod profiles_tools_system;
 #[path = "codebase/profiles/tools/tauri.rs"]
 mod profiles_tools_tauri;
+#[path = "codebase/profiles/traversal.rs"]
+mod profiles_traversal;
+#[path = "codebase/profiles/verbosity.rs"]
+mod profiles_verbosity;
 #[path = "codebase/walk.rs"]
 mod walk;
