@@ -4,5 +4,12 @@
 # they want, and the Biome config would have changed what the fixtures exercise.
 ignore = ["**/tests/fixtures/**"]
 
+# THIRD-PARTY-NOTICES.md carries the licenses of the Tree-sitter grammars
+# redistributed under `parser-packs/`. It is an attribution notice rather than a
+# working note, README links to it from the root, and license tooling expects to
+# find it beside LICENSE, so it stays where it is.
+[stray_files]
+allow = ["THIRD-PARTY-NOTICES.md"]
+
 [overrides]
 website = { severity = "off", reason = "no project website yet" }
