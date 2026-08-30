@@ -87,8 +87,8 @@ Borrowed from computational linguistics, where it is the sibling of a treebank.
 A treebank annotates a corpus with syntactic structure; a PropBank annotates the
 **same** corpus with predicate-argument semantics, aligned to the same tokens.
 That is exactly this split — one source, one layer from the grammar and one from
-the compiler, joined by alignment — and a reader who understands `treebank` gets
-`propbank` for free.
+the compiler, joined by alignment — and a reader who understands `treebank` needs
+no separate account of `propbank`.
 
 The borrowing is loose in the same way `treebank`'s is. Penn PropBank means
 semantic role labelling specifically, and this emits calls, types, definitions,
@@ -101,7 +101,7 @@ roughly "meaning" — which is a tax on every import and review comment; it is
 also overloaded here by semantic analysis, semantic versioning, and the existing
 `entl-semantics` crate. **`factbank`** reads well and is disqualified because
 **infact** already owns "fact" in this fleet and derives its facts from these
-very observations.
+same observations.
 
 ## Shape
 
@@ -274,7 +274,7 @@ checker is both correct and affordable. **They cannot share an invocation.**
 
 **C is the exception, and it is the trap.** libclang's parse-only translation
 unit — the identical invocation and flags `tools/c-oracle` already runs — carries
-resolved callees, USRs, types and byte offsets for free. Verified:
+resolved callees, USRs, types and byte offsets at no extra cost. Verified:
 
 ```
 good.c, header on -I:      call @6:29 (byte 150) -> mylib_len  type=mylib_size_t  usr=c:@F@mylib_len
