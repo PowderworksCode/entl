@@ -8,10 +8,7 @@
 //! under the GNU Free Documentation License 1.2, which Entl's MIT license
 //! cannot absorb, so no corpus source ever lands in the repository.
 
-mod corpus;
-mod emit;
-mod measure;
-mod stats;
+use verbosity::{corpus, emit, stats};
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

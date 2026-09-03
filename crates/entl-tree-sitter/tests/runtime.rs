@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-//! Loading, compiling, and running the queries a parser pack ships.
+//! Tests for `src/runtime.rs`: loading, compiling, and running the queries a
+//! parser pack ships.
 
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -17,5 +17,8 @@ arrow-schema = "59"
 parquet = { version = "59", features = ["arrow"] }
 thiserror.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true

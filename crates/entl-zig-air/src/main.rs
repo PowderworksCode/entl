@@ -12,8 +12,7 @@
 
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
-mod air;
-mod store;
+use entl_zig_air::{air, store};
 
 use std::io::{BufRead, Write};
 use std::path::PathBuf;

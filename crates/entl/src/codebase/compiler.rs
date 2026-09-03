@@ -45,7 +45,12 @@ fn run_rustc(root: &Path, arguments: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-fn parse_rustc(verbose: &str, cfg: &str, sysroot: &str) -> Result<CompilerObservation> {
+/// Read what `rustc` said about itself.
+///
+/// Public because it is the half of `observe_rust_compiler` that can be
+/// examined: the other half runs the compiler, and a test that has to run a
+/// toolchain to check a parser is testing the wrong thing.
+pub fn parse_rustc(verbose: &str, cfg: &str, sysroot: &str) -> Result<CompilerObservation> {
     let field = |name: &str| {
         verbose
             .lines()
@@ -107,30 +112,4 @@ fn parse_rustc(verbose: &str, cfg: &str, sysroot: &str) -> Result<CompilerObserv
         cfg,
         target_features,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use super::parse_rustc;
-
-    #[test]
-    fn parses_verbose_version_and_target_configuration() {
-        let compiler = parse_rustc(
-            "rustc 1.93.1 (01f4d6f7f 2026-02-11)\nbinary: rustc\ncommit-hash: 01f4d6f7f\nhost: aarch64-apple-darwin\nrelease: 1.93.1\n",
-            "target_arch=\"aarch64\"\ntarget_feature=\"aes\"\ntarget_feature=\"neon\"\n",
-            "/toolchains/stable",
-        )
-        .unwrap();
-        assert_eq!(compiler.version, "1.93.1");
-        assert_eq!(compiler.commit.as_deref(), Some("01f4d6f7f"));
-        assert_eq!(compiler.host, "aarch64-apple-darwin");
-        assert_eq!(compiler.sysroot, Path::new("/toolchains/stable"));
-        assert_eq!(compiler.standard_library_source, None);
-        assert_eq!(
-            compiler.target_features,
-            ["aes", "neon"].map(str::to_owned).into()
-        );
-    }
 }

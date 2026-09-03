@@ -1,29 +1,6 @@
+// Tests for `src/github/workflow.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use std::fs;
-use std::path::Path;
-
-use entl::codebase::{
-    BUN_ECOSYSTEM, CARGO_ECOSYSTEM, CODESPELL, HAWK, InventoryOptions, SHELLCHECK, TaskKind, VALE,
-    ZIZMOR, inspect as inspect_codebase,
-};
-use entl::github::{dependabot_ecosystem_profile, inspect};
-
-fn write(root: &Path, path: &str, content: &str) {
-    let path = root.join(path);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).unwrap();
-    }
-    fs::write(path, content).unwrap();
-}
-
-#[test]
-fn dependabot_profiles_link_to_codebase_ecosystems() {
-    let cargo = dependabot_ecosystem_profile(&CARGO_ECOSYSTEM).unwrap();
-    assert_eq!(cargo.package_ecosystem, "cargo");
-    let bun = dependabot_ecosystem_profile(&BUN_ECOSYSTEM).unwrap();
-    assert!(bun.accepts("bun"));
-    assert!(bun.accepts("npm"));
-}
+use crate::support::*;
 
 #[test]
 fn documentation_tools_are_typed_from_commands_and_actions() {
@@ -47,33 +24,6 @@ jobs:
 }
 
 #[test]
-fn dependabot_configuration_is_typed_separately_from_workflows() {
-    let temp = tempfile::tempdir().unwrap();
-    write(
-        temp.path(),
-        ".github/dependabot.yml",
-        r#"version: 2
-updates:
-  - package-ecosystem: npm
-    directories: ["/apps/*", "/packages/**"]
-    schedule:
-      interval: weekly
-"#,
-    );
-    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
-    let github = inspect(&codebase);
-    let configuration = github.dependabot.configuration.unwrap();
-    assert_eq!(configuration.path, Path::new(".github/dependabot.yml"));
-    assert_eq!(configuration.updates[0].package_ecosystem, "npm");
-    assert_eq!(
-        configuration.updates[0].directories,
-        ["/apps/*", "/packages/**"]
-    );
-    assert!(github.diagnostics.is_empty());
-    assert!(github.dependabot.diagnostics.is_empty());
-}
-
-#[test]
 fn invalid_dependabot_configuration_has_scoped_diagnostics() {
     let temp = tempfile::tempdir().unwrap();
     write(
@@ -91,34 +41,6 @@ fn invalid_dependabot_configuration_has_scoped_diagnostics() {
             .contains("schedule.interval")
     );
     assert!(github.diagnostics.is_empty());
-}
-
-#[test]
-fn codeowners_uses_github_precedence_and_retains_typed_rules() {
-    let temp = tempfile::tempdir().unwrap();
-    write(temp.path(), "CODEOWNERS", "* @root-owner\n");
-    write(temp.path(), "docs/CODEOWNERS", "* @docs-owner\n");
-    write(
-        temp.path(),
-        ".github/CODEOWNERS",
-        "# ownership\n/src/ @org/rust-team maintainer@example.com # rationale\n/apps/github\n",
-    );
-
-    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
-    let github = inspect(&codebase);
-    let configuration = github.codeowners.configuration.unwrap();
-    assert_eq!(configuration.path, Path::new(".github/CODEOWNERS"));
-    assert_eq!(configuration.rules.len(), 2);
-    assert_eq!(configuration.rules[0].line, 2);
-    assert_eq!(configuration.rules[0].pattern, "/src/");
-    assert_eq!(
-        configuration.rules[0].owners,
-        ["@org/rust-team", "maintainer@example.com"]
-    );
-    assert_eq!(configuration.rules[1].pattern, "/apps/github");
-    assert!(configuration.rules[1].owners.is_empty());
-    assert_eq!(github.codeowners.files.len(), 3);
-    assert!(github.codeowners.diagnostics.is_empty());
 }
 
 #[test]
@@ -143,99 +65,6 @@ fn invalid_codeowners_syntax_has_scoped_diagnostics() {
             .all(|diagnostic| diagnostic.path == Path::new("CODEOWNERS"))
     );
     assert!(github.diagnostics.is_empty());
-}
-
-#[test]
-fn conventional_enforcers_are_typed_with_workflow_provenance() {
-    let temp = tempfile::tempdir().unwrap();
-    write(
-        temp.path(),
-        ".github/workflows/titles.yml",
-        r#"on: pull_request_target
-jobs:
-  title:
-    steps:
-      - uses: amannn/action-semantic-pull-request@v6
-"#,
-    );
-    write(
-        temp.path(),
-        ".github/workflows/commits.yml",
-        r#"on: pull_request
-jobs:
-  lint:
-    steps:
-      - run: npx commitlint --from origin/main --to HEAD
-"#,
-    );
-
-    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
-    let github = inspect(&codebase);
-    assert_eq!(github.conventional_commits.enforcements.len(), 2);
-    assert!(
-        github
-            .conventional_commits
-            .enforcements
-            .iter()
-            .any(|enforcement| {
-                enforcement.enforcer == "semantic-pull-request"
-                    && enforcement.workflow == Path::new(".github/workflows/titles.yml")
-                    && enforcement.job == "title"
-                    && enforcement.step == 0
-            })
-    );
-    assert!(
-        github
-            .conventional_commits
-            .enforcements
-            .iter()
-            .any(|enforcement| {
-                enforcement.enforcer == "commitlint"
-                    && enforcement.workflow == Path::new(".github/workflows/commits.yml")
-            })
-    );
-}
-
-#[test]
-fn explicit_pr_title_patterns_are_enforcement_but_labels_are_not() {
-    let temp = tempfile::tempdir().unwrap();
-    write(
-        temp.path(),
-        ".github/workflows/conventional.yml",
-        r#"name: conventional
-on: pull_request
-jobs:
-  title:
-    steps:
-      - name: PR title follows conventional commits
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          echo "$TITLE" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert): .+' || exit 1
-  label:
-    steps:
-      - name: conventional label
-        run: echo conventional
-"#,
-    );
-
-    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
-    let github = inspect(&codebase);
-    assert_eq!(github.workflows[0].jobs[0].steps[0].env.len(), 1);
-    assert_eq!(github.conventional_commits.enforcements.len(), 1);
-    assert_eq!(
-        github.conventional_commits.enforcements[0].enforcer,
-        "conventional-pr-title-pattern"
-    );
-
-    write(
-        temp.path(),
-        ".github/workflows/conventional.yml",
-        "name: conventional\non: pull_request\njobs: {}\n",
-    );
-    let codebase = inspect_codebase(temp.path(), &InventoryOptions::default()).unwrap();
-    let github = inspect(&codebase);
-    assert!(github.conventional_commits.enforcements.is_empty());
 }
 
 #[test]
